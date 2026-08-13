@@ -1,21 +1,4 @@
-/**
- * Airtable attachment -> dynamic ESM loader helper.
- * Fetches raw source, round-trips it through escaped Base64, then imports a data URL.
- */
-/** @typedef {{url:string,filename?:string}} Attachment */
-/** @param {string|Attachment} attachment @returns {Promise<Record<string,unknown>>} */
-export async function importAttachmentModule(attachment) {
-  const url = typeof attachment === 'string' ? attachment : attachment?.url;
-  if (!url) throw new TypeError('Attachment URL is required.');
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Failed to fetch module source: ${response.status} ${response.statusText}`);
-  const source = await response.text();
-  const base64 = encodeSourceBase64(source);
-  const decoded = decodeSourceBase64(base64);
-  return import(`data:text/javascript;charset=utf-8;base64,${encodeSourceBase64(decoded)}`);
-}
-/** @param {string} source */
-export function encodeSourceBase64(source) { return btoa(unescape(encodeURIComponent(source))); }
-/** @param {string} base64 */
-export function decodeSourceBase64(base64) { return decodeURIComponent(escape(atob(base64))); }
-export default importAttachmentModule;
+/** @typedef {{title?:string,freebieStart?:string,freebieEnd?:string}} Promo */
+/** @param {Promo[]} rows @param {{referenceDate:string,target?:'active'|'next'|'startingOn'}} o */
+export function ordinalInsights(rows,o){rows=rows.filter(r=>r.freebieStart).sort((a,b)=>a.freebieStart.localeCompare(b.freebieStart));const t=target(rows,o.referenceDate,o.target??'next');if(!t.length)return{targets:[],insights:[]};const d=t[0].freebieStart,y=d.slice(0,4),m=d.slice(0,7),b=rows.filter(r=>r.freebieStart<d),n=t.length,f=b.length+1,l=b.length+n,mb=b.filter(r=>r.freebieStart.startsWith(m)).length+1,yb=b.filter(r=>r.freebieStart.startsWith(y)).length+1;return{targets:t,insights:[I('monthOrdinal',line(t,mb,mb+n-1,month(d))),I('yearOrdinal',line(t,yb,yb+n-1,y)),I('overallOrdinal',line(t,f,l,'the program overall'))]};}
+function target(r,d,m){if(m==='startingOn')return r.filter(x=>x.freebieStart===d);if(m==='active')return r.filter(x=>x.freebieStart<=d&&(!x.freebieEnd||d<x.freebieEnd));const n=r.find(x=>x.freebieStart>d)?.freebieStart;return n?r.filter(x=>x.freebieStart===n):[]}function line(r,a,b,p){const s=r.length===1?r[0].title:`These ${r.length} freebies`;return a===b?`${s} ${r.length===1?'is':'are'} the ${ord(a)} freebie ${p==='the program overall'?'in':'to begin in'} ${p}.`:`${s} occupy the ${ord(a)} through ${ord(b)} freebie slots ${p==='the program overall'?'in':'to begin in'} ${p}.`}function ord(n){const x=n%100;return`${n}${x>10&&x<14?'th':n%10===1?'st':n%10===2?'nd':n%10===3?'rd':'th'}`}function month(d){return new Intl.DateTimeFormat('en-US',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(`${d}T00:00:00Z`))}function I(kind,sentence){return{kind,strength:.75,sentence,data:{}}}export default ordinalInsights;
