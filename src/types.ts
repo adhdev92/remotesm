@@ -1,5 +1,20 @@
 export type AnyRecord = Record<string, any>;
 
+export type RemoteEsmFetch = (input: string, init?: any) => Promise<any>;
+
+export interface RemoteEsmGitHubOptions {
+  /** Fine-grained PAT, classic PAT, installation token, or other GitHub bearer token. */
+  token?: string;
+  /** Optional fetch-compatible transport, including Airtable remoteFetchAsync wrappers. */
+  fetch?: RemoteEsmFetch;
+  /** Existing Octokit instance/constructor, or true to dynamically import Octokit. */
+  octokit?: any;
+  /** Override the dynamically imported Octokit module URL. */
+  octokitUrl?: string;
+  /** GitHub REST API base URL, useful for GitHub Enterprise. */
+  apiBaseUrl?: string;
+}
+
 export type RemoteEsmInput = string | {
   specifier?: string;
   url?: string;
@@ -58,6 +73,7 @@ export interface RemoteEsmOptions {
   runtimeUrl?: string;
   url?: string;
   specifier?: string;
+  github?: RemoteEsmGitHubOptions;
 }
 
 export interface NormalizedRemoteEsmTarget {
