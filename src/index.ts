@@ -4,6 +4,7 @@ import Core from "./core/index.ts";
 
 import * as converter from "./converter.ts";
 import * as dtsGraph from "./dtsGraph.ts";
+import * as github from "./github.ts";
 import * as jsdoc from "./jsdoc.ts";
 import * as markdown from "./markdown.ts";
 import * as monaco from "./monaco.ts";
@@ -17,6 +18,7 @@ export * from "./cache.ts";
 export * from "./converter.ts";
 export * from "./core/index.ts";
 export * from "./dtsGraph.ts";
+export * from "./github.ts";
 export * from "./jsdoc.ts";
 export * from "./markdown.ts";
 export * from "./monaco.ts";
@@ -38,6 +40,7 @@ export {
   cache,
   converter,
   dtsGraph,
+  github,
   jsdoc,
   markdown,
   monaco,
@@ -46,18 +49,17 @@ export {
   url,
 };
 
-
 export default {
   Src,
   ...Src,
   cache,
   converter,
   dtsGraph,
+  github,
   jsdoc,
   markdown,
   monaco,
   network,
-
   types,
   url,
   $import_meta: import.meta,
