@@ -66,19 +66,25 @@ async function assertPinnedTypeScriptImports(
   expectedVersion: string,
 ): Promise<void> {
   const source = await readFile(outputPath, "utf8");
-  const matches = Array.from(
-    source.matchAll(/https:\/\/esm\.sh\/typescript(?:@([^\s"'`?]+))?/g),
-  );
+  const unpinned = source.match(/https:\/\/esm\.sh\/typescript(?=["'`?\s]|$)/g) || [];
 
-  if (!matches.length) {
-    throw new Error(`Expected ${outputPath} to contain an esm.sh TypeScript import.`);
+  if (unpinned.length) {
+    throw new Error(
+      `Unpinned TypeScript CDN import in ${outputPath}: ${unpinned[0]}. ` +
+      `Expected a versioned URL derived from package.json.`,
+    );
   }
 
-  for (const match of matches) {
-    if (match[1] !== expectedVersion) {
+  const literalVersions = Array.from(
+    source.matchAll(/https:\/\/esm\.sh\/typescript@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)/g),
+    (match) => match[1],
+  );
+
+  for (const version of literalVersions) {
+    if (version !== expectedVersion) {
       throw new Error(
-        `Unpinned or mismatched TypeScript CDN import in ${outputPath}: ${match[0]}. ` +
-        `Expected https://esm.sh/typescript@${expectedVersion}.`,
+        `Mismatched TypeScript CDN version in ${outputPath}: ${version}. ` +
+        `Expected ${expectedVersion} from package.json.`,
       );
     }
   }
