@@ -5,6 +5,7 @@ import {
   fetchGitHubVirtualText,
   importModuleCached,
   parseGitHubSpecifier,
+  RemoteEsmImport,
   resolvePrivateGitHubTarget,
 } from "../index.ts";
 import type { RemoteEsmOptions } from "../index.ts";
@@ -81,6 +82,17 @@ test("resolves and imports a private GitHub package with token-authenticated fet
 
   const imported: any = await importModuleCached(target!.runtimeUrl, options);
   assert.equal(imported.value, 42);
+
+  const result = await RemoteEsmImport("github:acme/private-lib", {
+    ...options,
+    tsUrl: import.meta.resolve("typescript"),
+    log: false,
+  });
+
+  assert.equal(result.pick("value"), 42);
+  assert.equal(result.runtimeUrl.includes("github_pat_test_secret"), false);
+  assert.ok(result.dtsGraph.files.some((file) => file.url.endsWith("/dist/index.d.ts")));
+  assert.ok(result.completions.flat.some((entry) => entry.label === "value"));
 
   assert.ok(requests.length >= 4);
   for (const request of requests) {
