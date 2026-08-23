@@ -1723,13 +1723,28 @@ function createDtsCompletionConverter(ts) {
 	return { convertText };
 }
 //#endregion
+//#region package.json
+var devDependencies = {
+	"@opengsd/gsd-core": "^1.6.1",
+	"@types/node": "^26.1.0",
+	"tsdown": "^0.22.3",
+	"typescript": "6.0.3"
+};
+//#endregion
 //#region src/network.ts
 var network_exports = /* @__PURE__ */ __exportAll({
+	DEFAULT_TYPESCRIPT_URL: () => DEFAULT_TYPESCRIPT_URL,
+	TYPESCRIPT_VERSION: () => TYPESCRIPT_VERSION,
 	getJson: () => getJson,
 	getText: () => getText,
 	importModuleCached: () => importModuleCached,
 	loadTypeScript: () => loadTypeScript
 });
+const exactVersionPattern = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+/** Exact TypeScript version used for remote compiler imports. */
+const TYPESCRIPT_VERSION = getPinnedTypeScriptVersion(devDependencies?.typescript);
+/** Default esm.sh URL for the TypeScript compiler API. */
+const DEFAULT_TYPESCRIPT_URL = `https://esm.sh/typescript@${TYPESCRIPT_VERSION}`;
 /** Fetch text through Airtable remoteFetchAsync when available, otherwise fetch. */
 async function getText(url) {
 	return vmMemo(remoteEsmVm.text, url, async () => {
@@ -1755,11 +1770,15 @@ async function importModuleCached(url) {
 	});
 }
 /** Load the TypeScript compiler API from esm.sh. */
-async function loadTypeScript(tsUrl = "https://esm.sh/typescript") {
+async function loadTypeScript(tsUrl = DEFAULT_TYPESCRIPT_URL) {
 	if (remoteEsmVm.ts) return remoteEsmVm.ts;
 	const tsModule = await import(tsUrl);
 	remoteEsmVm.ts = tsModule.default || tsModule;
 	return remoteEsmVm.ts;
+}
+function getPinnedTypeScriptVersion(value) {
+	if (typeof value !== "string" || !exactVersionPattern.test(value)) throw new Error(`package.json devDependencies.typescript must be an exact version, received ${JSON.stringify(value)}.`);
+	return value;
 }
 //#endregion
 //#region src/url.ts
@@ -3016,7 +3035,7 @@ function normalizeTypedBindingOptions(options) {
 */
 async function remoteEsmImport(input, options = {}) {
 	const target = normalizeRemoteEsmTarget(input, options);
-	const { tsUrl = "https://esm.sh/typescript", maxDepth = 5, maxFiles = 80, includeBareDtsImports = true, typeNameSuffix = "", unknownType, includeHeader = false, log = true } = options;
+	const { tsUrl = DEFAULT_TYPESCRIPT_URL, maxDepth = 5, maxFiles = 80, includeBareDtsImports = true, typeNameSuffix = "", unknownType, includeHeader = false, log = true } = options;
 	return await importWithPackageCache(JSON.stringify({
 		input,
 		target,
@@ -3164,4 +3183,4 @@ var src_default = {
 	$import_meta: import.meta
 };
 //#endregion
-export { bli_cache_default as BliCache, core_default as Core, getStorageQuota as GetStorageQuota, importCdnPackageWithTypes as RemoteEsmImport, importCdnPackageWithTypes, Src, string_exports as StringUtils, temp_storage_default as TempStorage, aliasBasicType, appendQuery, appendRawDocLines, attachCompletionTypeJsdoc, buildGlobalDefinitions, buildImportTypeDefinitions, buildRemoteEsmImportMatches, buildShorthandDefinition, cache_exports as cache, callableEntryToSafeArrowType, cleanDoc, cleanTagName, clearRemoteEsmVm, completionTypeToSafeJsdoc, completionsToSafeJsdoc, converter_exports as converter, createDtsCompletionConverter, src_default as default, dtsGraph_exports as dtsGraph, escapeJsString, escapeRegExp, esmMetaUrl, esmUrl, expandDtsCandidates, exportTypeAccessor, extractDtsImportSpecifiers, extractPropertyType, extractTemplateNames, extractTypeAliasType, findMatchingParen, findTopLevelArrow, findTopLevelChar, firstWorkingDtsCandidate, getConstructorTypeExpression, getDtsConverter, getJson, getLocalExportTypeName, getRequiredTemplateCount, getText, getTypedBindingTypeExpression, importModuleCached, importWithPackageCache, inferSpecifierFromUrl, isHttpUrl, isIdentifierName, isPrimitiveOrBuiltin, joinDefinitionLines, jsdoc_exports as jsdoc, loadDtsGraph, loadTypeScript, markdown_exports as markdown, markdownCodeBlock, mergeJsdocOptions, monaco_exports as monaco, network_exports as network, normalizeJsdocSettings, normalizePackageSpecifier, normalizeRemoteEsmTarget, normalizeTypedBindingOptions, oneLine, parseArrowFunctionType, parseCallableDetail, parseGenericType, parseParams, propertyAccessor, remoteEsmImport, remoteEsmImportMatchToTypedBinding, remoteEsmVm, renderArrowParam, renderJsdocBlock, renderJsdocDefinitions, renderOneLineJsdocBlock, renderSafeProperty, renderTypedBinding, resolveDeclarationUrl, resolveDtsImport, runtimePropertyAccessor, sanitizeBindingName, sanitizeParamName, shouldOmitObjectTypedefType, spaceToDocLines, spaceToRawSeparator, splitTopLevel, toAbsoluteCdnUrl, toLocalParsedTypeExpression, toMonacoSuggestions, toSafeArrowType, toSafeGenericArgument, toSafeJsdocType, types_exports as types, url_exports as url, vmMemo };
+export { bli_cache_default as BliCache, core_default as Core, DEFAULT_TYPESCRIPT_URL, getStorageQuota as GetStorageQuota, importCdnPackageWithTypes as RemoteEsmImport, importCdnPackageWithTypes, Src, string_exports as StringUtils, TYPESCRIPT_VERSION, temp_storage_default as TempStorage, aliasBasicType, appendQuery, appendRawDocLines, attachCompletionTypeJsdoc, buildGlobalDefinitions, buildImportTypeDefinitions, buildRemoteEsmImportMatches, buildShorthandDefinition, cache_exports as cache, callableEntryToSafeArrowType, cleanDoc, cleanTagName, clearRemoteEsmVm, completionTypeToSafeJsdoc, completionsToSafeJsdoc, converter_exports as converter, createDtsCompletionConverter, src_default as default, dtsGraph_exports as dtsGraph, escapeJsString, escapeRegExp, esmMetaUrl, esmUrl, expandDtsCandidates, exportTypeAccessor, extractDtsImportSpecifiers, extractPropertyType, extractTemplateNames, extractTypeAliasType, findMatchingParen, findTopLevelArrow, findTopLevelChar, firstWorkingDtsCandidate, getConstructorTypeExpression, getDtsConverter, getJson, getLocalExportTypeName, getRequiredTemplateCount, getText, getTypedBindingTypeExpression, importModuleCached, importWithPackageCache, inferSpecifierFromUrl, isHttpUrl, isIdentifierName, isPrimitiveOrBuiltin, joinDefinitionLines, jsdoc_exports as jsdoc, loadDtsGraph, loadTypeScript, markdown_exports as markdown, markdownCodeBlock, mergeJsdocOptions, monaco_exports as monaco, network_exports as network, normalizeJsdocSettings, normalizePackageSpecifier, normalizeRemoteEsmTarget, normalizeTypedBindingOptions, oneLine, parseArrowFunctionType, parseCallableDetail, parseGenericType, parseParams, propertyAccessor, remoteEsmImport, remoteEsmImportMatchToTypedBinding, remoteEsmVm, renderArrowParam, renderJsdocBlock, renderJsdocDefinitions, renderOneLineJsdocBlock, renderSafeProperty, renderTypedBinding, resolveDeclarationUrl, resolveDtsImport, runtimePropertyAccessor, sanitizeBindingName, sanitizeParamName, shouldOmitObjectTypedefType, spaceToDocLines, spaceToRawSeparator, splitTopLevel, toAbsoluteCdnUrl, toLocalParsedTypeExpression, toMonacoSuggestions, toSafeArrowType, toSafeGenericArgument, toSafeJsdocType, types_exports as types, url_exports as url, vmMemo };

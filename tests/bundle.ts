@@ -4,7 +4,7 @@
  */
 
 const DEFAULT_CDN = "https://esm.sh";
-const DEFAULT_TS_URL = "https://esm.sh/typescript@5?target=es2022";
+const DEFAULT_TS_URL = "https://esm.sh/typescript@6.0.3?target=es2022";
 
 export async function remoteEsmImport(input, options = {}) {
   const opts = {
