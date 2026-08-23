@@ -39,6 +39,39 @@ const Octokit = octo.pick("Octokit");
 console.info(Reflect.ownKeys(Octokit));
 ```
 
+## Configured importer defaults
+
+Use `createRemoteEsmImport()` (also exported as `initRemoteEsmImport`) when the same options should apply to many imports. Defaults are captured once; options supplied to an individual call override only fields that are explicitly defined.
+
+```ts
+import { createRemoteEsmImport } from "./index.ts";
+
+const remoteEsmImport = createRemoteEsmImport({
+  github: {
+    token: GH_TOKEN,
+    fetch: globalThis.remoteFetchAsync,
+  },
+  log: false,
+});
+
+const vcli = await remoteEsmImport("gh:dddominikk/vcli");
+const other = await remoteEsmImport("gh:dddominikk/other-private-repo#main");
+```
+
+Per-call overrides merge with the initialized defaults, including nested GitHub and JSDoc settings:
+
+```ts
+const pkg = await remoteEsmImport("gh:dddominikk/vcli", {
+  log: true,
+  github: {
+    fetch: anotherFetch,
+    // initialized token is retained because token is not overridden
+  },
+});
+```
+
+`undefined` means "keep the initialized default". Explicit values such as `false`, `""`, a different token, or a different fetch implementation replace the corresponding default.
+
 ## Supported inputs
 
 ```ts
