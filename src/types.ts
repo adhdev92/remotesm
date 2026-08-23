@@ -171,6 +171,12 @@ export interface RemoteEsmResult {
   asAny<T = any>(value: T): any;
 }
 
+/** A RemoteEsmImport function with caller-defined default options captured in its closure. */
+export type RemoteEsmImporter = (
+  input: RemoteEsmInput,
+  options?: RemoteEsmOptions,
+) => Promise<RemoteEsmResult>;
+
 export interface RemoteEsmVm {
   text: Map<string, Promise<string>>;
   json: Map<string, Promise<any>>;
