@@ -52,6 +52,58 @@ await RemoteEsmImport("https://esm.sh/@octokit/core@7.0.6");
 await RemoteEsmImport({ runtimeUrl: "https://esm.sh/pkg", dtsUrl: "https://example.com/pkg.d.ts", specifier: "pkg" });
 ```
 
+## Private GitHub repositories
+
+Passing `options.github` switches `github:` / `gh:` inputs from the public esm.sh GitHub path to GitHub's authenticated Contents API. The token stays in request headers and is never embedded in the generated runtime URLs.
+
+### Token + fetch
+
+```ts
+const pkg = await RemoteEsmImport("github:my-org/private-repo#main", {
+  github: {
+    token: GH_TOKEN,
+    // Optional. If omitted, remoteFetchAsync is preferred when available,
+    // otherwise global fetch is used.
+    fetch: globalThis.remoteFetchAsync,
+  },
+});
+```
+
+Fine-grained PATs, classic PATs, installation tokens, and other valid GitHub bearer tokens work as long as they can read the repository contents.
+
+### Dynamically imported Octokit
+
+```ts
+const pkg = await RemoteEsmImport("gh:my-org/private-repo#main", {
+  github: {
+    token: GH_TOKEN,
+    octokit: true,
+  },
+});
+```
+
+`octokit: true` dynamically imports the pinned default `https://esm.sh/@octokit/core@7.0.6`. Override it with `github.octokitUrl` when needed.
+
+You can also pass an existing Octokit-compatible instance:
+
+```ts
+const pkg = await RemoteEsmImport("gh:my-org/private-repo#main", {
+  github: { octokit },
+});
+```
+
+Monorepo package directories are supported as part of the specifier:
+
+```ts
+await RemoteEsmImport("github:my-org/private-monorepo/packages/sdk#main", {
+  github: { token: GH_TOKEN },
+});
+```
+
+For authenticated GitHub packages, `RemoteEsm` reads `package.json`, resolves the root runtime and declaration entries, fetches relative private files through GitHub with authentication, transpiles TypeScript/TSX runtime source when necessary, and rewrites repository-local runtime imports to credential-free data URLs. Bare npm dependencies continue to resolve through `esm.sh`.
+
+A private runtime graph containing circular relative imports currently requires a pre-bundled ESM entry; the authenticated data-URL loader reports `ERR_PRIVATE_GITHUB_MODULE_CYCLE` rather than hanging.
+
 ## Notes
 
 - `jsdoc.globals` defaults to `"none"`, so fake runtime stubs are not emitted unless requested.
