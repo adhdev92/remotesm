@@ -2,7 +2,7 @@ import { remoteEsmVm } from "../cache.ts";
 import { loadDtsGraph, resolveDeclarationUrl } from "../dtsGraph.ts";
 import { attachCompletionTypeJsdoc, completionsToSafeJsdoc } from "../jsdoc.ts";
 import type { JsdocConvertOptions } from "../jsdoc.ts";
-import { importModuleCached } from "../network.ts";
+import { DEFAULT_TYPESCRIPT_URL, importModuleCached } from "../network.ts";
 import { normalizeRemoteEsmTarget } from "../url.ts";
 import type {
   RemoteEsmInput,
@@ -30,7 +30,7 @@ export * from "./lib/index.ts";
 export async function remoteEsmImport(input: RemoteEsmInput, options: RemoteEsmOptions = {}): Promise<RemoteEsmResult> {
   const target = normalizeRemoteEsmTarget(input, options);
   const {
-    tsUrl = "https://esm.sh/typescript@6.0.3",
+    tsUrl = DEFAULT_TYPESCRIPT_URL,
     maxDepth = 5,
     maxFiles = 80,
     includeBareDtsImports = true,
