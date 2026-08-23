@@ -1,10 +1,25 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import {
+  DEFAULT_TYPESCRIPT_URL,
+  resolveTypeScriptUrl,
+  TYPESCRIPT_VERSION,
+} from "../src/network.ts";
 
 const exactVersionPattern = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const unpinnedTypeScriptUrlPattern = /https:\/\/esm\.sh\/typescript(?=["'`?\s]|$)/g;
 const literalTypeScriptVersionPattern = /https:\/\/esm\.sh\/typescript@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)/g;
+
+test("bare esm.sh TypeScript URLs are pinned at the import boundary", () => {
+  const bareUrl = new URL("typescript?target=es2022", "https://esm.sh/").href;
+
+  assert.equal(DEFAULT_TYPESCRIPT_URL, `https://esm.sh/typescript@${TYPESCRIPT_VERSION}`);
+  assert.equal(
+    resolveTypeScriptUrl(bareUrl),
+    `https://esm.sh/typescript@${TYPESCRIPT_VERSION}?target=es2022`,
+  );
+});
 
 test("all committed esm.sh TypeScript URLs are pinned to package.json", async () => {
   const packageJson = JSON.parse(await readFile("package.json", "utf8")) as {
@@ -14,6 +29,7 @@ test("all committed esm.sh TypeScript URLs are pinned to package.json", async ()
 
   assert.equal(typeof version, "string");
   assert.match(version as string, exactVersionPattern);
+  assert.equal(TYPESCRIPT_VERSION, version);
 
   const files = [
     "src/network.ts",
