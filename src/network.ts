@@ -37,7 +37,7 @@ export async function importModuleCached<T = any>(url: string): Promise<T> {
 }
 
 /** Load the TypeScript compiler API from esm.sh. */
-export async function loadTypeScript(tsUrl = "https://esm.sh/typescript"): Promise<any> {
+export async function loadTypeScript(tsUrl = "https://esm.sh/typescript@6.0.3"): Promise<any> {
   if (remoteEsmVm.ts) return remoteEsmVm.ts;
 
   const tsModule: any = await import(tsUrl);
