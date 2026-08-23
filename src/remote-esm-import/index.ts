@@ -1,5 +1,6 @@
 import { remoteEsmVm } from "../cache.ts";
 import { loadDtsGraph, resolveDeclarationUrl } from "../dtsGraph.ts";
+import { resolvePrivateGitHubTarget } from "../github.ts";
 import { attachCompletionTypeJsdoc, completionsToSafeJsdoc } from "../jsdoc.ts";
 import type { JsdocConvertOptions } from "../jsdoc.ts";
 import { DEFAULT_TYPESCRIPT_URL, importModuleCached } from "../network.ts";
@@ -24,11 +25,12 @@ export * from "./lib/index.ts";
  * - "@octokit/core@7.0.6"
  * - "github:user/repo#commit"
  * - "gh:user/repo#commit"
+ * - authenticated private GitHub repositories via options.github
  * - "https://esm.sh/@octokit/core@7.0.6"
  * - { runtimeUrl, dtsUrl, specifier }
  */
 export async function remoteEsmImport(input: RemoteEsmInput, options: RemoteEsmOptions = {}): Promise<RemoteEsmResult> {
-  const target = normalizeRemoteEsmTarget(input, options);
+  const target = await resolvePrivateGitHubTarget(input, options) || normalizeRemoteEsmTarget(input, options);
   const {
     tsUrl = DEFAULT_TYPESCRIPT_URL,
     maxDepth = 5,
@@ -55,7 +57,7 @@ export async function remoteEsmImport(input: RemoteEsmInput, options: RemoteEsmO
 
   return await importWithPackageCache(packageCacheKey, async () => {
     const [moduleObject, dtsUrl, converter] = await Promise.all([
-      importModuleCached(target.runtimeUrl),
+      importModuleCached(target.runtimeUrl, options),
       resolveDeclarationUrl(target, options),
       getDtsConverter(tsUrl),
     ]);
