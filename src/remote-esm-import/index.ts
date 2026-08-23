@@ -6,7 +6,9 @@ import type { JsdocConvertOptions } from "../jsdoc.ts";
 import { DEFAULT_TYPESCRIPT_URL, importModuleCached } from "../network.ts";
 import { normalizeRemoteEsmTarget } from "../url.ts";
 import type {
+  RemoteEsmImporter,
   RemoteEsmInput,
+  RemoteEsmJsdocOptions,
   RemoteEsmOptions,
   RemoteEsmResult,
 } from "../types.ts";
@@ -129,6 +131,87 @@ export async function remoteEsmImport(input: RemoteEsmInput, options: RemoteEsmO
 
     return result;
   });
+}
+
+/**
+ * Create a RemoteEsmImport function with reusable defaults captured once.
+ * Per-call options override only fields that are explicitly defined.
+ */
+export function createRemoteEsmImport(defaultOptions: RemoteEsmOptions = {}): RemoteEsmImporter {
+  const defaults = mergeRemoteEsmOptions({}, defaultOptions);
+
+  return async (input: RemoteEsmInput, options: RemoteEsmOptions = {}) => {
+    return await remoteEsmImport(input, mergeRemoteEsmOptions(defaults, options));
+  };
+}
+
+/** Alias emphasizing one-time initialization of a configured importer. */
+export const initRemoteEsmImport = createRemoteEsmImport;
+
+/** Merge initialized defaults with per-call overrides while preserving undefined defaults. */
+export function mergeRemoteEsmOptions(
+  defaults: RemoteEsmOptions = {},
+  overrides: RemoteEsmOptions = {},
+): RemoteEsmOptions {
+  const merged = mergeDefinedRecord(defaults, overrides) as RemoteEsmOptions;
+
+  if (defaults.github || overrides.github) {
+    merged.github = mergeDefinedRecord(defaults.github || {}, overrides.github || {});
+  }
+
+  if (defaults.jsdoc || overrides.jsdoc) {
+    merged.jsdoc = mergeJsdocOptions(defaults.jsdoc, overrides.jsdoc);
+  }
+
+  return merged;
+}
+
+function mergeJsdocOptions(
+  defaults: RemoteEsmJsdocOptions | undefined,
+  overrides: RemoteEsmJsdocOptions | undefined,
+): RemoteEsmJsdocOptions {
+  const merged = mergeDefinedRecord(defaults || {}, overrides || {}) as RemoteEsmJsdocOptions;
+
+  if (defaults?.tags || overrides?.tags) {
+    merged.tags = mergeDefinedRecord(defaults?.tags || {}, overrides?.tags || {});
+  }
+
+  if (defaults?.importTypes || overrides?.importTypes) {
+    merged.importTypes = mergeDefinedRecord(
+      defaults?.importTypes || {},
+      overrides?.importTypes || {},
+    );
+  }
+
+  if (
+    defaults?.shorthand &&
+    typeof defaults.shorthand === "object" &&
+    overrides?.shorthand &&
+    typeof overrides.shorthand === "object"
+  ) {
+    merged.shorthand = mergeDefinedRecord(defaults.shorthand, overrides.shorthand);
+
+    if (defaults.shorthand.types || overrides.shorthand.types) {
+      merged.shorthand.types = mergeDefinedRecord(
+        defaults.shorthand.types || {},
+        overrides.shorthand.types || {},
+      );
+    }
+  }
+
+  return merged;
+}
+
+function mergeDefinedRecord<T extends Record<string, any>>(defaults: T, overrides: Partial<T>): T {
+  const merged = { ...defaults } as T;
+
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value !== undefined) {
+      (merged as any)[key] = value;
+    }
+  }
+
+  return merged;
 }
 
 /** Backwards-compatible alias for the earlier single-file API name. */
