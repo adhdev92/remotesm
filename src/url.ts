@@ -1,5 +1,15 @@
 import type { NormalizedRemoteEsmTarget, RemoteEsmInput, RemoteEsmOptions } from "./types.ts";
 
+/** Test whether a string is an absolute URL with any scheme. */
+export function isAbsoluteUrl(value: string): boolean {
+  try {
+    new URL(String(value || ""));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Test whether a string is an absolute HTTP(S) URL. */
 export function isHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(String(value || ""));
@@ -38,14 +48,13 @@ export function esmMetaUrl(specifier: string, options: RemoteEsmOptions = {}): s
   return appendQuery(esmUrl(specifier, options), { meta: "" });
 }
 
-/** Convert a metadata path to an absolute CDN URL. */
+/** Convert a metadata/declaration path to an absolute URL. */
 export function toAbsoluteCdnUrl(pathOrUrl: string, baseUrlOrOptions: string | RemoteEsmOptions = {}): string {
   if (!pathOrUrl) return "";
-  if (isHttpUrl(pathOrUrl)) return pathOrUrl;
+  if (isAbsoluteUrl(pathOrUrl)) return pathOrUrl;
 
-  if (typeof baseUrlOrOptions === "string" && isHttpUrl(baseUrlOrOptions)) {
-    const base = new URL(baseUrlOrOptions);
-    return `${base.origin}/${String(pathOrUrl).replace(/^\//, "")}`;
+  if (typeof baseUrlOrOptions === "string" && isAbsoluteUrl(baseUrlOrOptions)) {
+    return new URL(pathOrUrl, baseUrlOrOptions).href;
   }
 
   const options = baseUrlOrOptions as RemoteEsmOptions;
