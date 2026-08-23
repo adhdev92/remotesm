@@ -824,7 +824,7 @@ var AutoTypings = class AutoTypings {
 		for (const candidate of roots) {
 			const typePath = chooseTypeEntry(candidate.pkg, ref.subpath);
 			if (!typePath) continue;
-			const entry = await this.#firstReadableDeclaration(declarationCandidates(new this.libs.URL(typePath.replace(/^\.\//, ""), candidate.root)));
+			const entry = await this.#firstReadableDeclaration(declarationCandidates$1(new this.libs.URL(typePath.replace(/^\.\//, ""), candidate.root)));
 			if (entry) return {
 				entry,
 				source: candidate.source,
@@ -850,7 +850,7 @@ var AutoTypings = class AutoTypings {
 		await runWithConcurrency(parseDeclarationDependencies(declarationSource).map((dependency) => async () => {
 			try {
 				if (dependency.kind === "path") {
-					const child = await this.#firstReadableDeclaration(declarationCandidates(new this.libs.URL(dependency.value, href)));
+					const child = await this.#firstReadableDeclaration(declarationCandidates$1(new this.libs.URL(dependency.value, href)));
 					if (child) await this.#collectDeclarationGraph(child, files, packages, seenEntries, depth + 1);
 					return;
 				}
@@ -878,7 +878,7 @@ var AutoTypings = class AutoTypings {
 		}
 	}
 	async #findLocalTypeEntry(runtimeURL) {
-		return this.#firstReadableDeclaration(declarationCandidates(this.#toURL(runtimeURL)));
+		return this.#firstReadableDeclaration(declarationCandidates$1(this.#toURL(runtimeURL)));
 	}
 	async #firstReadableDeclaration(candidates) {
 		for (const candidate of candidates) if (await this.text(candidate, { optional: true }) !== void 0) return this.#toURL(candidate).href;
@@ -1247,7 +1247,7 @@ function toDeclarationPath(path) {
 	if (/\.(?:js|jsx|mts|cts|ts|tsx)$/i.test(value)) return value.replace(/\.(?:js|jsx|mts|cts|ts|tsx)$/i, ".d.ts");
 	return value;
 }
-function declarationCandidates(url) {
+function declarationCandidates$1(url) {
 	const URLImpl = url.constructor;
 	const candidates = [];
 	const push = (value) => {
@@ -1723,6 +1723,295 @@ function createDtsCompletionConverter(ts) {
 	return { convertText };
 }
 //#endregion
+//#region src/github.ts
+var github_exports = /* @__PURE__ */ __exportAll({
+	DEFAULT_OCTOKIT_URL: () => DEFAULT_OCTOKIT_URL,
+	PRIVATE_GITHUB_PROTOCOL: () => PRIVATE_GITHUB_PROTOCOL,
+	createGitHubVirtualUrl: () => createGitHubVirtualUrl,
+	fetchGitHubFile: () => fetchGitHubFile,
+	fetchGitHubVirtualText: () => fetchGitHubVirtualText,
+	hasPrivateGitHubTransport: () => hasPrivateGitHubTransport,
+	isGitHubVirtualUrl: () => isGitHubVirtualUrl,
+	parseGitHubSpecifier: () => parseGitHubSpecifier,
+	parseGitHubVirtualUrl: () => parseGitHubVirtualUrl,
+	resolveGitHubVirtualImport: () => resolveGitHubVirtualImport,
+	resolvePrivateGitHubTarget: () => resolvePrivateGitHubTarget
+});
+const DEFAULT_OCTOKIT_URL = "https://esm.sh/@octokit/core@7.0.6";
+const PRIVATE_GITHUB_PROTOCOL = "gh-private:";
+const octokitCache = /* @__PURE__ */ new WeakMap();
+/** Parse github:owner/repo[/package/path]#ref and gh: aliases. */
+function parseGitHubSpecifier(value) {
+	const raw = String(value || "").trim();
+	const prefix = raw.startsWith("github:") ? "github:" : raw.startsWith("gh:") ? "gh:" : "";
+	if (!prefix) return null;
+	const body = raw.slice(prefix.length);
+	const hashIndex = body.indexOf("#");
+	const repoAndPath = hashIndex >= 0 ? body.slice(0, hashIndex) : body;
+	const ref = hashIndex >= 0 ? body.slice(hashIndex + 1).trim() : "";
+	const parts = repoAndPath.split("/").filter(Boolean);
+	if (parts.length < 2) throw new TypeError(`Invalid GitHub repository specifier: ${value}`);
+	return {
+		owner: parts[0],
+		repo: parts[1],
+		ref,
+		path: parts.slice(2).join("/")
+	};
+}
+/** Whether options request authenticated/direct GitHub resolution. */
+function hasPrivateGitHubTransport(options = {}) {
+	const github = options.github;
+	return !!github && !!(github.token || github.fetch || github.octokit || github.octokitUrl);
+}
+/** Resolve an authenticated github:/gh: input to private virtual runtime/type URLs. */
+async function resolvePrivateGitHubTarget(input, options = {}) {
+	if (!hasPrivateGitHubTransport(options)) return null;
+	const specifier = typeof input === "string" ? input : input?.specifier || options.specifier || "";
+	const parsed = parseGitHubSpecifier(specifier);
+	if (!parsed) return null;
+	const ref = parsed.ref || await getDefaultBranch(parsed.owner, parsed.repo, options);
+	const explicitFile = isRuntimeFilePath(parsed.path) ? parsed.path : "";
+	const packageRoot = explicitFile ? dirname(explicitFile) : parsed.path.replace(/^\/+|\/+$/g, "");
+	let runtimePath = explicitFile;
+	let dtsPath = options.dtsUrl || (typeof input === "object" && input ? input.dtsUrl || "" : "");
+	if (!runtimePath) {
+		const packagePath = joinPath(packageRoot, "package.json");
+		const pkg = JSON.parse(await fetchGitHubFile(parsed.owner, parsed.repo, ref, packagePath, options));
+		runtimePath = joinPath(packageRoot, pickPackageRuntimeEntry(pkg));
+		if (!dtsPath) {
+			const declarationEntry = pickPackageDeclarationEntry(pkg);
+			if (declarationEntry) dtsPath = joinPath(packageRoot, declarationEntry);
+		}
+	}
+	if (!runtimePath) throw new Error(`Could not determine a runtime entry for ${specifier}.`);
+	if (!dtsPath) dtsPath = await inferGitHubDeclarationPath(parsed.owner, parsed.repo, ref, runtimePath, options);
+	else if (!isAbsoluteUrl$1(dtsPath)) dtsPath = joinPath(packageRoot, dtsPath);
+	return {
+		input,
+		specifier,
+		runtimeUrl: createGitHubVirtualUrl(parsed.owner, parsed.repo, ref, runtimePath),
+		metaUrl: "",
+		dtsUrl: dtsPath ? isAbsoluteUrl$1(dtsPath) ? dtsPath : createGitHubVirtualUrl(parsed.owner, parsed.repo, ref, dtsPath) : "",
+		isUrl: true,
+		esmBase: options.esmBase || "https://esm.sh"
+	};
+}
+/** Create an opaque URL that identifies a private GitHub file without embedding credentials. */
+function createGitHubVirtualUrl(owner, repo, ref, path) {
+	const encodedPath = String(path || "").replace(/^\/+/, "").split("/").filter(Boolean).map(encodeURIComponent).join("/");
+	return `${PRIVATE_GITHUB_PROTOCOL}//${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(ref)}/${encodedPath}`;
+}
+function isGitHubVirtualUrl(value) {
+	return String(value || "").startsWith(`${PRIVATE_GITHUB_PROTOCOL}//`);
+}
+function parseGitHubVirtualUrl(value) {
+	const url = new URL(value);
+	if (url.protocol !== "gh-private:") throw new TypeError(`Not a private GitHub virtual URL: ${value}`);
+	const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+	if (parts.length < 2) throw new TypeError(`Malformed private GitHub virtual URL: ${value}`);
+	return {
+		owner: decodeURIComponent(url.hostname),
+		repo: parts[0],
+		ref: parts[1],
+		path: parts.slice(2).join("/")
+	};
+}
+/** Resolve a repository-local import while retaining owner/repo/ref identity. */
+function resolveGitHubVirtualImport(fromUrl, specifier) {
+	if (!isGitHubVirtualUrl(fromUrl)) return new URL(specifier, fromUrl).href;
+	if (specifier.startsWith("/") && !specifier.startsWith("//")) {
+		const file = parseGitHubVirtualUrl(fromUrl);
+		return createGitHubVirtualUrl(file.owner, file.repo, file.ref, specifier.slice(1));
+	}
+	return new URL(specifier, fromUrl).href;
+}
+/** Read a gh-private: file via GitHub Contents API using fetch or Octokit. */
+async function fetchGitHubVirtualText(url, options = {}) {
+	const file = parseGitHubVirtualUrl(url);
+	return fetchGitHubFile(file.owner, file.repo, file.ref, file.path, options);
+}
+async function fetchGitHubFile(owner, repo, ref, path, options = {}) {
+	const github = options.github || {};
+	const octokit = await getOctokit(github);
+	if (octokit) return decodeGitHubContent((await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
+		owner,
+		repo,
+		path,
+		...ref ? { ref } : {},
+		headers: { accept: "application/vnd.github.raw+json" }
+	}))?.data);
+	const apiBase = (github.apiBaseUrl || "https://api.github.com").replace(/\/$/, "");
+	const url = new URL(`${apiBase}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${path.split("/").map(encodeURIComponent).join("/")}`);
+	if (ref) url.searchParams.set("ref", ref);
+	const response = await githubFetch(url.href, {
+		method: "GET",
+		headers: githubHeaders(github, "application/vnd.github.raw+json")
+	}, github);
+	if (!response?.ok) throw githubHttpError("file", owner, repo, path, response);
+	return await response.text();
+}
+async function getDefaultBranch(owner, repo, options) {
+	const github = options.github || {};
+	const octokit = await getOctokit(github);
+	if (octokit) {
+		const branch = (await octokit.request("GET /repos/{owner}/{repo}", {
+			owner,
+			repo
+		}))?.data?.default_branch;
+		if (!branch) throw new Error(`GitHub did not return a default branch for ${owner}/${repo}.`);
+		return String(branch);
+	}
+	const response = await githubFetch(`${(github.apiBaseUrl || "https://api.github.com").replace(/\/$/, "")}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, {
+		method: "GET",
+		headers: githubHeaders(github, "application/vnd.github+json")
+	}, github);
+	if (!response?.ok) throw githubHttpError("repository", owner, repo, "", response);
+	const data = await response.json();
+	if (!data?.default_branch) throw new Error(`GitHub did not return a default branch for ${owner}/${repo}.`);
+	return String(data.default_branch);
+}
+async function inferGitHubDeclarationPath(owner, repo, ref, runtimePath, options) {
+	if (/\.(?:ts|tsx|mts|cts)$/i.test(runtimePath) && !/\.d\.(?:ts|mts|cts)$/i.test(runtimePath)) return runtimePath;
+	const candidates = declarationCandidates(runtimePath);
+	for (const candidate of candidates) try {
+		await fetchGitHubFile(owner, repo, ref, candidate, options);
+		return candidate;
+	} catch {}
+	return "";
+}
+function pickPackageRuntimeEntry(pkg) {
+	return stripDotSlash(pickConditionalExport(packageExportRoot(pkg?.exports), [
+		"browser",
+		"import",
+		"module",
+		"default",
+		"require"
+	], true) || (typeof pkg?.module === "string" ? pkg.module : "") || (typeof pkg?.browser === "string" ? pkg.browser : "") || (typeof pkg?.main === "string" ? pkg.main : "") || "index.js");
+}
+function pickPackageDeclarationEntry(pkg) {
+	return stripDotSlash(pickConditionalExport(packageExportRoot(pkg?.exports), ["types", "typings"], false) || (typeof pkg?.types === "string" ? pkg.types : "") || (typeof pkg?.typings === "string" ? pkg.typings : ""));
+}
+function packageExportRoot(exportsField) {
+	if (!exportsField || typeof exportsField !== "object" || Array.isArray(exportsField)) return exportsField;
+	return Object.keys(exportsField).some((key) => key.startsWith(".")) ? exportsField["."] : exportsField;
+}
+function pickConditionalExport(value, conditions, fallback) {
+	if (typeof value === "string") return value;
+	if (Array.isArray(value)) {
+		for (const item of value) {
+			const picked = pickConditionalExport(item, conditions, fallback);
+			if (picked) return picked;
+		}
+		return "";
+	}
+	if (!value || typeof value !== "object") return "";
+	for (const condition of conditions) {
+		const picked = pickConditionalExport(value[condition], conditions, fallback);
+		if (picked) return picked;
+	}
+	if (fallback) for (const child of Object.values(value)) {
+		const picked = pickConditionalExport(child, conditions, fallback);
+		if (picked) return picked;
+	}
+	return "";
+}
+async function getOctokit(github) {
+	if (github.octokit && github.octokit !== true) {
+		const candidate = github.octokit;
+		if (typeof candidate.request === "function") return candidate;
+		if (typeof candidate === "function") return new candidate(octokitConstructorOptions(github));
+	}
+	if (github.octokit !== true && !github.octokitUrl) return null;
+	const key = github;
+	let pending = octokitCache.get(key);
+	if (!pending) {
+		pending = (async () => {
+			const moduleUrl = github.octokitUrl || "https://esm.sh/@octokit/core@7.0.6";
+			const mod = await import(
+				/* @vite-ignore */
+				moduleUrl
+);
+			const Octokit = mod?.Octokit || mod?.default?.Octokit || mod?.default;
+			if (typeof Octokit !== "function") throw new TypeError(`No Octokit constructor found in ${moduleUrl}.`);
+			return new Octokit(octokitConstructorOptions(github));
+		})();
+		octokitCache.set(key, pending);
+	}
+	return pending;
+}
+function octokitConstructorOptions(github) {
+	return {
+		...github.token ? { auth: github.token } : {},
+		...github.fetch ? { request: { fetch: github.fetch } } : {},
+		...github.apiBaseUrl ? { baseUrl: github.apiBaseUrl } : {}
+	};
+}
+async function githubFetch(url, init, github) {
+	const remoteFetch = globalThis.remoteFetchAsync;
+	const fetchImpl = github.fetch || (typeof remoteFetch === "function" ? remoteFetch : globalThis.fetch);
+	if (typeof fetchImpl !== "function") throw new Error("No fetch implementation available for GitHub. Pass options.github.fetch or provide fetch/remoteFetchAsync globally.");
+	return await fetchImpl(url, init);
+}
+function githubHeaders(github, accept) {
+	return {
+		accept,
+		"x-github-api-version": "2022-11-28",
+		...github.token ? { authorization: `Bearer ${github.token}` } : {}
+	};
+}
+function decodeGitHubContent(data) {
+	if (typeof data === "string") return data;
+	if (data && typeof data.content === "string") {
+		const compact = data.content.replace(/\s+/g, "");
+		if (typeof globalThis.atob === "function") return decodeURIComponent(Array.from(globalThis.atob(compact), (char) => `%${char.charCodeAt(0).toString(16).padStart(2, "0")}`).join(""));
+		const BufferCtor = globalThis.Buffer;
+		if (BufferCtor) return BufferCtor.from(compact, "base64").toString("utf8");
+	}
+	throw new TypeError("GitHub Contents API did not return decodable file content.");
+}
+function githubHttpError(kind, owner, repo, path, response) {
+	const suffix = path ? `/${path}` : "";
+	const error = /* @__PURE__ */ new Error(`Failed to fetch private GitHub ${kind} ${owner}/${repo}${suffix}: ${response?.status ?? "unknown"}`);
+	error.status = response?.status;
+	error.code = "ERR_PRIVATE_GITHUB_FETCH";
+	return error;
+}
+function declarationCandidates(runtimePath) {
+	const out = /* @__PURE__ */ new Set();
+	const add = (value) => value && out.add(value);
+	if (/\.mjs$/i.test(runtimePath)) {
+		add(runtimePath.replace(/\.mjs$/i, ".d.mts"));
+		add(runtimePath.replace(/\.mjs$/i, ".d.ts"));
+	} else if (/\.cjs$/i.test(runtimePath)) {
+		add(runtimePath.replace(/\.cjs$/i, ".d.cts"));
+		add(runtimePath.replace(/\.cjs$/i, ".d.ts"));
+	} else if (/\.(?:js|jsx)$/i.test(runtimePath)) add(runtimePath.replace(/\.(?:js|jsx)$/i, ".d.ts"));
+	add(joinPath(dirname(runtimePath), "index.d.ts"));
+	return Array.from(out);
+}
+function isRuntimeFilePath(path) {
+	return /\.(?:[cm]?[jt]sx?|mjs|cjs)$/i.test(path);
+}
+function isAbsoluteUrl$1(value) {
+	try {
+		new URL(value);
+		return true;
+	} catch {
+		return false;
+	}
+}
+function stripDotSlash(value) {
+	return String(value || "").replace(/^\.\//, "");
+}
+function dirname(path) {
+	const clean = String(path || "").replace(/^\/+|\/+$/g, "");
+	const slash = clean.lastIndexOf("/");
+	return slash >= 0 ? clean.slice(0, slash) : "";
+}
+function joinPath(...parts) {
+	return parts.filter(Boolean).map((part) => String(part).replace(/^\/+|\/+$/g, "")).filter(Boolean).join("/");
+}
+//#endregion
 //#region package.json
 var devDependencies = {
 	"@opengsd/gsd-core": "^1.6.1",
@@ -1731,78 +2020,27 @@ var devDependencies = {
 	"typescript": "6.0.3"
 };
 //#endregion
-//#region src/network.ts
-var network_exports = /* @__PURE__ */ __exportAll({
-	DEFAULT_TYPESCRIPT_URL: () => DEFAULT_TYPESCRIPT_URL,
-	TYPESCRIPT_VERSION: () => TYPESCRIPT_VERSION,
-	getJson: () => getJson,
-	getText: () => getText,
-	importModuleCached: () => importModuleCached,
-	loadTypeScript: () => loadTypeScript,
-	resolveTypeScriptUrl: () => resolveTypeScriptUrl
-});
-const exactVersionPattern = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
-/** Exact TypeScript version used for remote compiler imports. */
-const TYPESCRIPT_VERSION = getPinnedTypeScriptVersion(devDependencies?.typescript);
-/** Default esm.sh URL for the TypeScript compiler API. */
-const DEFAULT_TYPESCRIPT_URL = `https://esm.sh/typescript@${TYPESCRIPT_VERSION}`;
-/** Fetch text through Airtable remoteFetchAsync when available, otherwise fetch. */
-async function getText(url) {
-	return vmMemo(remoteEsmVm.text, url, async () => {
-		const remoteFetch = globalThis.remoteFetchAsync;
-		let response;
-		if (typeof remoteFetch === "function") response = await remoteFetch(url);
-		else if (typeof fetch === "function") response = await fetch(url);
-		else throw new Error("No fetch API found. Expected remoteFetchAsync or fetch.");
-		if (!response.ok) throw new Error(`Failed to fetch ${url}: ${response.status}`);
-		return await response.text();
-	});
-}
-/** Fetch and parse JSON. */
-async function getJson(url) {
-	return vmMemo(remoteEsmVm.json, url, async () => {
-		return JSON.parse(await getText(url));
-	});
-}
-/** Import a module URL with memory caching. */
-async function importModuleCached(url) {
-	return vmMemo(remoteEsmVm.module, url, async () => {
-		return await import(url);
-	});
-}
-/** Ensure a bare esm.sh TypeScript URL is pinned to the package.json compiler version. */
-function resolveTypeScriptUrl(tsUrl = DEFAULT_TYPESCRIPT_URL) {
-	const url = new URL(tsUrl);
-	const hostname = url.hostname.toLowerCase();
-	if ((hostname === "esm.sh" || hostname.endsWith(".esm.sh")) && url.pathname === "/typescript") {
-		url.pathname = `/typescript@${TYPESCRIPT_VERSION}`;
-		return url.href;
-	}
-	return tsUrl;
-}
-/** Load the TypeScript compiler API from esm.sh. */
-async function loadTypeScript(tsUrl = DEFAULT_TYPESCRIPT_URL) {
-	if (remoteEsmVm.ts) return remoteEsmVm.ts;
-	const tsModule = await import(resolveTypeScriptUrl(tsUrl));
-	remoteEsmVm.ts = tsModule.default || tsModule;
-	return remoteEsmVm.ts;
-}
-function getPinnedTypeScriptVersion(value) {
-	if (typeof value !== "string" || !exactVersionPattern.test(value)) throw new Error(`package.json devDependencies.typescript must be an exact version, received ${JSON.stringify(value)}.`);
-	return value;
-}
-//#endregion
 //#region src/url.ts
 var url_exports = /* @__PURE__ */ __exportAll({
 	appendQuery: () => appendQuery,
 	esmMetaUrl: () => esmMetaUrl,
 	esmUrl: () => esmUrl,
 	inferSpecifierFromUrl: () => inferSpecifierFromUrl,
+	isAbsoluteUrl: () => isAbsoluteUrl,
 	isHttpUrl: () => isHttpUrl,
 	normalizePackageSpecifier: () => normalizePackageSpecifier,
 	normalizeRemoteEsmTarget: () => normalizeRemoteEsmTarget,
 	toAbsoluteCdnUrl: () => toAbsoluteCdnUrl
 });
+/** Test whether a string is an absolute URL with any scheme. */
+function isAbsoluteUrl(value) {
+	try {
+		new URL(String(value || ""));
+		return true;
+	} catch {
+		return false;
+	}
+}
 /** Test whether a string is an absolute HTTP(S) URL. */
 function isHttpUrl(value) {
 	return /^https?:\/\//i.test(String(value || ""));
@@ -1825,11 +2063,11 @@ function esmUrl(specifier, options = {}) {
 function esmMetaUrl(specifier, options = {}) {
 	return appendQuery(esmUrl(specifier, options), { meta: "" });
 }
-/** Convert a metadata path to an absolute CDN URL. */
+/** Convert a metadata/declaration path to an absolute URL. */
 function toAbsoluteCdnUrl(pathOrUrl, baseUrlOrOptions = {}) {
 	if (!pathOrUrl) return "";
-	if (isHttpUrl(pathOrUrl)) return pathOrUrl;
-	if (typeof baseUrlOrOptions === "string" && isHttpUrl(baseUrlOrOptions)) return `${new URL(baseUrlOrOptions).origin}/${String(pathOrUrl).replace(/^\//, "")}`;
+	if (isAbsoluteUrl(pathOrUrl)) return pathOrUrl;
+	if (typeof baseUrlOrOptions === "string" && isAbsoluteUrl(baseUrlOrOptions)) return new URL(pathOrUrl, baseUrlOrOptions).href;
 	return `${(baseUrlOrOptions.esmBase || "https://esm.sh").replace(/\/$/, "")}/${String(pathOrUrl).replace(/^\//, "")}`;
 }
 /** Normalize a user-supplied package/URL/object into runtime/meta/dts URLs. */
@@ -1903,6 +2141,136 @@ function inferSpecifierFromUrl(url) {
 	}
 }
 //#endregion
+//#region src/network.ts
+var network_exports = /* @__PURE__ */ __exportAll({
+	DEFAULT_TYPESCRIPT_URL: () => DEFAULT_TYPESCRIPT_URL,
+	TYPESCRIPT_VERSION: () => TYPESCRIPT_VERSION,
+	getJson: () => getJson,
+	getText: () => getText,
+	importModuleCached: () => importModuleCached,
+	loadTypeScript: () => loadTypeScript,
+	resolveTypeScriptUrl: () => resolveTypeScriptUrl
+});
+const exactVersionPattern = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+/** Exact TypeScript version used for remote compiler imports. */
+const TYPESCRIPT_VERSION = getPinnedTypeScriptVersion(devDependencies?.typescript);
+/** Default esm.sh URL for the TypeScript compiler API. */
+const DEFAULT_TYPESCRIPT_URL = `https://esm.sh/typescript@${TYPESCRIPT_VERSION}`;
+/** Fetch text through authenticated GitHub transport, Airtable remoteFetchAsync, or fetch. */
+async function getText(url, options = {}) {
+	return vmMemo(remoteEsmVm.text, url, async () => {
+		if (isGitHubVirtualUrl(url)) return await fetchGitHubVirtualText(url, options);
+		const remoteFetch = globalThis.remoteFetchAsync;
+		let response;
+		if (typeof remoteFetch === "function") response = await remoteFetch(url);
+		else if (typeof fetch === "function") response = await fetch(url);
+		else throw new Error("No fetch API found. Expected remoteFetchAsync or fetch.");
+		if (!response.ok) throw new Error(`Failed to fetch ${url}: ${response.status}`);
+		return await response.text();
+	});
+}
+/** Fetch and parse JSON. */
+async function getJson(url, options = {}) {
+	return vmMemo(remoteEsmVm.json, url, async () => {
+		return JSON.parse(await getText(url, options));
+	});
+}
+/** Import a module URL with memory caching, including authenticated GitHub virtual modules. */
+async function importModuleCached(url, options = {}) {
+	return vmMemo(remoteEsmVm.module, url, async () => {
+		if (isGitHubVirtualUrl(url)) return await importGitHubVirtualModule(url, options);
+		return await import(url);
+	});
+}
+/** Ensure a bare esm.sh TypeScript URL is pinned to the package.json compiler version. */
+function resolveTypeScriptUrl(tsUrl = DEFAULT_TYPESCRIPT_URL) {
+	const url = new URL(tsUrl);
+	const hostname = url.hostname.toLowerCase();
+	if ((hostname === "esm.sh" || hostname.endsWith(".esm.sh")) && url.pathname === "/typescript") {
+		url.pathname = `/typescript@${TYPESCRIPT_VERSION}`;
+		return url.href;
+	}
+	return tsUrl;
+}
+/** Load the TypeScript compiler API from esm.sh. */
+async function loadTypeScript(tsUrl = DEFAULT_TYPESCRIPT_URL) {
+	if (remoteEsmVm.ts) return remoteEsmVm.ts;
+	const tsModule = await import(resolveTypeScriptUrl(tsUrl));
+	remoteEsmVm.ts = tsModule.default || tsModule;
+	return remoteEsmVm.ts;
+}
+async function importGitHubVirtualModule(url, options) {
+	return await import(await buildGitHubExecutableUrl(url, options, /* @__PURE__ */ new Map(), []));
+}
+async function buildGitHubExecutableUrl(url, options, generated, stack) {
+	if (stack.includes(url)) {
+		const cycle = [...stack.slice(stack.indexOf(url)), url].map((item) => parseGitHubVirtualUrl(item).path).join(" -> ");
+		const error = /* @__PURE__ */ new Error(`Cyclic private GitHub runtime imports are not supported by the header-auth loader: ${cycle}. Point the package entry at a pre-bundled ESM build to avoid the cycle.`);
+		error.code = "ERR_PRIVATE_GITHUB_MODULE_CYCLE";
+		throw error;
+	}
+	const cached = generated.get(url);
+	if (cached) return await cached;
+	const pending = (async () => {
+		const file = parseGitHubVirtualUrl(url);
+		let source = await getText(url, options);
+		if (/\.json$/i.test(file.path)) source = `export default ${source.trim()};`;
+		else if (/\.(?:ts|tsx|mts|cts)$/i.test(file.path) && !/\.d\.(?:ts|mts|cts)$/i.test(file.path)) {
+			const ts = await loadTypeScript(options.tsUrl || DEFAULT_TYPESCRIPT_URL);
+			source = ts.transpileModule(source, {
+				fileName: file.path,
+				compilerOptions: {
+					module: ts.ModuleKind.ESNext,
+					target: ts.ScriptTarget.ES2022,
+					jsx: ts.JsxEmit?.ReactJSX ?? ts.JsxEmit?.Preserve,
+					sourceMap: false,
+					inlineSourceMap: false
+				}
+			}).outputText;
+		}
+		const nextStack = [...stack, url];
+		source = await rewriteModuleSpecifiersAsync(source, async (specifier) => {
+			if (!specifier || specifier.startsWith("node:") || specifier.startsWith("data:") || specifier.startsWith("blob:")) return specifier;
+			if (specifier.startsWith(".") || specifier.startsWith("/") && !specifier.startsWith("//")) return await buildGitHubExecutableUrl(resolveGitHubVirtualImport(url, specifier), options, generated, nextStack);
+			if (/^[A-Za-z][A-Za-z\d+.-]*:/.test(specifier)) return specifier;
+			return esmUrl(specifier, options);
+		});
+		source += `\n//# sourceURL=${url}\n`;
+		return `data:text/javascript;charset=utf-8,${encodeURIComponent(source)}`;
+	})();
+	generated.set(url, pending);
+	try {
+		return await pending;
+	} catch (error) {
+		generated.delete(url);
+		throw error;
+	}
+}
+async function rewriteModuleSpecifiersAsync(source, rewrite) {
+	let result = String(source);
+	result = await replaceAsync(result, /(\b(?:import|export)\s+(?:type\s+)?(?:[^"'`;]*?\s+from\s*)?)(["'])([^"']+)\2/g, async (_full, prefix, quote, specifier) => `${prefix}${quote}${await rewrite(specifier)}${quote}`);
+	result = await replaceAsync(result, /(\bimport\s*\(\s*)(["'])([^"']+)\2(\s*\))/g, async (_full, prefix, quote, specifier, suffix) => `${prefix}${quote}${await rewrite(specifier)}${quote}${suffix}`);
+	return result;
+}
+async function replaceAsync(source, pattern, replacer) {
+	const matches = Array.from(source.matchAll(pattern));
+	if (!matches.length) return source;
+	let cursor = 0;
+	const out = [];
+	for (const match of matches) {
+		const index = match.index ?? 0;
+		out.push(source.slice(cursor, index));
+		out.push(await replacer(...match.map((value) => value ?? "")));
+		cursor = index + match[0].length;
+	}
+	out.push(source.slice(cursor));
+	return out.join("");
+}
+function getPinnedTypeScriptVersion(value) {
+	if (typeof value !== "string" || !exactVersionPattern.test(value)) throw new Error(`package.json devDependencies.typescript must be an exact version, received ${JSON.stringify(value)}.`);
+	return value;
+}
+//#endregion
 //#region src/dtsGraph.ts
 var dtsGraph_exports = /* @__PURE__ */ __exportAll({
 	expandDtsCandidates: () => expandDtsCandidates,
@@ -1922,7 +2290,7 @@ async function resolveDeclarationUrl(target, options = {}) {
 	return vmMemo(remoteEsmVm.dtsUrl, cacheKey, async () => {
 		if (target.dtsUrl || options.dtsUrl) return toAbsoluteCdnUrl(target.dtsUrl || options.dtsUrl || "", target.runtimeUrl);
 		if (!target.metaUrl) throw new Error(`No d.ts URL or metadata URL available for ${target.specifier}.`);
-		const meta = await getJson(target.metaUrl);
+		const meta = await getJson(target.metaUrl, options);
 		const dtsPath = meta?.default?.dts || meta?.dts || meta?.types || meta?.typings;
 		if (!dtsPath) throw new Error(`No d.ts path found in metadata for ${target.specifier}.`);
 		return toAbsoluteCdnUrl(dtsPath, target.runtimeUrl);
@@ -1949,7 +2317,7 @@ async function loadDtsGraph(entryUrl, options = {}) {
 			visited.add(url);
 			let text = "";
 			try {
-				text = await getText(url);
+				text = await getText(url, options);
 			} catch (error) {
 				failed.push({
 					url,
@@ -2000,19 +2368,13 @@ async function resolveDtsImport(fromUrl, imported, options = {}) {
 	const spec = String(imported || "").trim();
 	if (!spec) return "";
 	if (spec.startsWith("node:")) return "";
-	if (isHttpUrl(spec)) return await firstWorkingDtsCandidate([spec]);
-	if (spec.startsWith("/") && !spec.startsWith("//")) {
-		const origin = new URL(fromUrl).origin;
-		return await firstWorkingDtsCandidate(expandDtsCandidates(`${origin}${spec}`));
-	}
-	if (spec.startsWith(".")) {
-		const absolute = new URL(spec, fromUrl).href;
-		return await firstWorkingDtsCandidate(expandDtsCandidates(absolute));
-	}
+	if (isHttpUrl(spec)) return await firstWorkingDtsCandidate([spec], options);
+	if (spec.startsWith("/") && !spec.startsWith("//")) return await firstWorkingDtsCandidate(expandDtsCandidates(isGitHubVirtualUrl(fromUrl) ? resolveGitHubVirtualImport(fromUrl, spec) : `${new URL(fromUrl).origin}${spec}`), options);
+	if (spec.startsWith(".")) return await firstWorkingDtsCandidate(expandDtsCandidates(isGitHubVirtualUrl(fromUrl) ? resolveGitHubVirtualImport(fromUrl, spec) : new URL(spec, fromUrl).href), options);
 	if (!options.includeBareDtsImports) return "";
 	try {
 		const metaUrl = appendQuery(`${(options.esmBase || "https://esm.sh").replace(/\/$/, "")}/${spec.replace(/^\//, "")}`, { meta: "" });
-		const meta = await getJson(metaUrl);
+		const meta = await getJson(metaUrl, options);
 		const dtsPath = meta?.default?.dts || meta?.dts || meta?.types || meta?.typings;
 		return dtsPath ? toAbsoluteCdnUrl(dtsPath, metaUrl) : "";
 	} catch {
@@ -2034,9 +2396,9 @@ function expandDtsCandidates(url) {
 	];
 }
 /** Return the first declaration URL that can be fetched. */
-async function firstWorkingDtsCandidate(candidates) {
+async function firstWorkingDtsCandidate(candidates, options = {}) {
 	for (const candidate of candidates) try {
-		await getText(candidate);
+		await getText(candidate, options);
 		return candidate;
 	} catch {}
 	return "";
@@ -3041,11 +3403,12 @@ function normalizeTypedBindingOptions(options) {
 * - "@octokit/core@7.0.6"
 * - "github:user/repo#commit"
 * - "gh:user/repo#commit"
+* - authenticated private GitHub repositories via options.github
 * - "https://esm.sh/@octokit/core@7.0.6"
 * - { runtimeUrl, dtsUrl, specifier }
 */
 async function remoteEsmImport(input, options = {}) {
-	const target = normalizeRemoteEsmTarget(input, options);
+	const target = await resolvePrivateGitHubTarget(input, options) || normalizeRemoteEsmTarget(input, options);
 	const { tsUrl = DEFAULT_TYPESCRIPT_URL, maxDepth = 5, maxFiles = 80, includeBareDtsImports = true, typeNameSuffix = "", unknownType, includeHeader = false, log = true } = options;
 	return await importWithPackageCache(JSON.stringify({
 		input,
@@ -3060,7 +3423,7 @@ async function remoteEsmImport(input, options = {}) {
 		jsdoc: options.jsdoc || null
 	}), async () => {
 		const [moduleObject, dtsUrl, converter] = await Promise.all([
-			importModuleCached(target.runtimeUrl),
+			importModuleCached(target.runtimeUrl, options),
 			resolveDeclarationUrl(target, options),
 			getDtsConverter(tsUrl)
 		]);
@@ -3185,6 +3548,7 @@ var src_default = {
 	cache: cache_exports,
 	converter: converter_exports,
 	dtsGraph: dtsGraph_exports,
+	github: github_exports,
 	jsdoc: jsdoc_exports,
 	markdown: markdown_exports,
 	monaco: monaco_exports,
@@ -3194,4 +3558,4 @@ var src_default = {
 	$import_meta: import.meta
 };
 //#endregion
-export { bli_cache_default as BliCache, core_default as Core, DEFAULT_TYPESCRIPT_URL, getStorageQuota as GetStorageQuota, importCdnPackageWithTypes as RemoteEsmImport, importCdnPackageWithTypes, Src, string_exports as StringUtils, TYPESCRIPT_VERSION, temp_storage_default as TempStorage, aliasBasicType, appendQuery, appendRawDocLines, attachCompletionTypeJsdoc, buildGlobalDefinitions, buildImportTypeDefinitions, buildRemoteEsmImportMatches, buildShorthandDefinition, cache_exports as cache, callableEntryToSafeArrowType, cleanDoc, cleanTagName, clearRemoteEsmVm, completionTypeToSafeJsdoc, completionsToSafeJsdoc, converter_exports as converter, createDtsCompletionConverter, src_default as default, dtsGraph_exports as dtsGraph, escapeJsString, escapeRegExp, esmMetaUrl, esmUrl, expandDtsCandidates, exportTypeAccessor, extractDtsImportSpecifiers, extractPropertyType, extractTemplateNames, extractTypeAliasType, findMatchingParen, findTopLevelArrow, findTopLevelChar, firstWorkingDtsCandidate, getConstructorTypeExpression, getDtsConverter, getJson, getLocalExportTypeName, getRequiredTemplateCount, getText, getTypedBindingTypeExpression, importModuleCached, importWithPackageCache, inferSpecifierFromUrl, isHttpUrl, isIdentifierName, isPrimitiveOrBuiltin, joinDefinitionLines, jsdoc_exports as jsdoc, loadDtsGraph, loadTypeScript, markdown_exports as markdown, markdownCodeBlock, mergeJsdocOptions, monaco_exports as monaco, network_exports as network, normalizeJsdocSettings, normalizePackageSpecifier, normalizeRemoteEsmTarget, normalizeTypedBindingOptions, oneLine, parseArrowFunctionType, parseCallableDetail, parseGenericType, parseParams, propertyAccessor, remoteEsmImport, remoteEsmImportMatchToTypedBinding, remoteEsmVm, renderArrowParam, renderJsdocBlock, renderJsdocDefinitions, renderOneLineJsdocBlock, renderSafeProperty, renderTypedBinding, resolveDeclarationUrl, resolveDtsImport, resolveTypeScriptUrl, runtimePropertyAccessor, sanitizeBindingName, sanitizeParamName, shouldOmitObjectTypedefType, spaceToDocLines, spaceToRawSeparator, splitTopLevel, toAbsoluteCdnUrl, toLocalParsedTypeExpression, toMonacoSuggestions, toSafeArrowType, toSafeGenericArgument, toSafeJsdocType, types_exports as types, url_exports as url, vmMemo };
+export { bli_cache_default as BliCache, core_default as Core, DEFAULT_OCTOKIT_URL, DEFAULT_TYPESCRIPT_URL, getStorageQuota as GetStorageQuota, PRIVATE_GITHUB_PROTOCOL, importCdnPackageWithTypes as RemoteEsmImport, importCdnPackageWithTypes, Src, string_exports as StringUtils, TYPESCRIPT_VERSION, temp_storage_default as TempStorage, aliasBasicType, appendQuery, appendRawDocLines, attachCompletionTypeJsdoc, buildGlobalDefinitions, buildImportTypeDefinitions, buildRemoteEsmImportMatches, buildShorthandDefinition, cache_exports as cache, callableEntryToSafeArrowType, cleanDoc, cleanTagName, clearRemoteEsmVm, completionTypeToSafeJsdoc, completionsToSafeJsdoc, converter_exports as converter, createDtsCompletionConverter, createGitHubVirtualUrl, src_default as default, dtsGraph_exports as dtsGraph, escapeJsString, escapeRegExp, esmMetaUrl, esmUrl, expandDtsCandidates, exportTypeAccessor, extractDtsImportSpecifiers, extractPropertyType, extractTemplateNames, extractTypeAliasType, fetchGitHubFile, fetchGitHubVirtualText, findMatchingParen, findTopLevelArrow, findTopLevelChar, firstWorkingDtsCandidate, getConstructorTypeExpression, getDtsConverter, getJson, getLocalExportTypeName, getRequiredTemplateCount, getText, getTypedBindingTypeExpression, github_exports as github, hasPrivateGitHubTransport, importModuleCached, importWithPackageCache, inferSpecifierFromUrl, isAbsoluteUrl, isGitHubVirtualUrl, isHttpUrl, isIdentifierName, isPrimitiveOrBuiltin, joinDefinitionLines, jsdoc_exports as jsdoc, loadDtsGraph, loadTypeScript, markdown_exports as markdown, markdownCodeBlock, mergeJsdocOptions, monaco_exports as monaco, network_exports as network, normalizeJsdocSettings, normalizePackageSpecifier, normalizeRemoteEsmTarget, normalizeTypedBindingOptions, oneLine, parseArrowFunctionType, parseCallableDetail, parseGenericType, parseGitHubSpecifier, parseGitHubVirtualUrl, parseParams, propertyAccessor, remoteEsmImport, remoteEsmImportMatchToTypedBinding, remoteEsmVm, renderArrowParam, renderJsdocBlock, renderJsdocDefinitions, renderOneLineJsdocBlock, renderSafeProperty, renderTypedBinding, resolveDeclarationUrl, resolveDtsImport, resolveGitHubVirtualImport, resolvePrivateGitHubTarget, resolveTypeScriptUrl, runtimePropertyAccessor, sanitizeBindingName, sanitizeParamName, shouldOmitObjectTypedefType, spaceToDocLines, spaceToRawSeparator, splitTopLevel, toAbsoluteCdnUrl, toLocalParsedTypeExpression, toMonacoSuggestions, toSafeArrowType, toSafeGenericArgument, toSafeJsdocType, types_exports as types, url_exports as url, vmMemo };
