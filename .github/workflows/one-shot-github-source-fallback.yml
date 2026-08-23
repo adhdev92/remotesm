@@ -21,23 +21,25 @@ jobs:
           node-version: 26
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Test source
-        run: npm test
-
-      - name: Build single-file bundles
-        run: npm run bundles
-
-      - name: Test regenerated outputs
-        run: npm test
-
-      - name: Commit generated bundles
+      - name: Validate, rebuild, and report
+        shell: bash
         run: |
+          set +e
+          LOG=.github/source-fallback-validation.log
+          npm ci > "$LOG" 2>&1
+          INSTALL=$?
+          npm test >> "$LOG" 2>&1
+          TEST=$?
+          npm run bundles >> "$LOG" 2>&1
+          BUILD=$?
+          npm test >> "$LOG" 2>&1
+          RETEST=$?
+          echo "INSTALL=$INSTALL TEST=$TEST BUILD=$BUILD RETEST=$RETEST" >> "$LOG"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add build/bundle.ts build/bundle.mjs
-          git rm .github/workflows/one-shot-github-source-fallback.yml
-          git commit -m "Regenerate bundles with GitHub source fallback"
+          git add "$LOG"
+          if [ "$INSTALL" -eq 0 ] && [ "$TEST" -eq 0 ] && [ "$BUILD" -eq 0 ] && [ "$RETEST" -eq 0 ]; then
+            git add build/bundle.ts build/bundle.mjs
+          fi
+          git commit -m "Record GitHub source fallback validation"
           git push
