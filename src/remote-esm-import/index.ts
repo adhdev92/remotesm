@@ -30,7 +30,7 @@ export * from "./lib/index.ts";
 export async function remoteEsmImport(input: RemoteEsmInput, options: RemoteEsmOptions = {}): Promise<RemoteEsmResult> {
   const target = normalizeRemoteEsmTarget(input, options);
   const {
-    tsUrl = "https://esm.sh/typescript@6",
+    tsUrl = "https://esm.sh/typescript@6.0.3",
     maxDepth = 5,
     maxFiles = 80,
     includeBareDtsImports = true,
