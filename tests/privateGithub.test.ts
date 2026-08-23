@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createGitHubVirtualUrl,
+  createRemoteEsmImport,
   fetchGitHubVirtualText,
   importModuleCached,
   parseGitHubSpecifier,
@@ -93,6 +94,19 @@ test("resolves and imports a private GitHub package with token-authenticated fet
   assert.equal(result.runtimeUrl.includes("github_pat_test_secret"), false);
   assert.ok(result.dtsGraph.files.some((file) => file.url.endsWith("/dist/index.d.ts")));
   assert.ok(result.completions.flat.some((entry) => entry.label === "value"));
+
+  const configuredImport = createRemoteEsmImport({
+    github: {
+      token: "github_pat_test_secret",
+      fetch,
+    },
+    tsUrl: import.meta.resolve("typescript"),
+    log: false,
+  });
+
+  const configuredResult = await configuredImport("gh:acme/private-lib");
+  assert.equal(configuredResult.pick("value"), 42);
+  assert.equal(configuredResult.runtimeUrl.includes("github_pat_test_secret"), false);
 
   assert.ok(requests.length >= 4);
   for (const request of requests) {
