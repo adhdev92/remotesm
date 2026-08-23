@@ -1,0 +1,95 @@
+
+added 149 packages, and audited 150 packages in 4s
+
+46 packages are looking for funding
+  run `npm fund` for details
+
+4 vulnerabilities (2 moderate, 2 high)
+
+To address all issues, run:
+  npm audit fix
+
+Run `npm audit` for details.
+
+> remote-esm@0.1.0 test
+> node --test tests/*.test.ts
+
+✔ configured importer options merge defined overrides deeply (5.389767ms)
+✔ parses GitHub repository aliases without exposing auth (8.278769ms)
+✔ resolves and imports a private GitHub package with token-authenticated fetch (458.225128ms)
+✖ accepts an existing Octokit-compatible client (1.175687ms)
+✔ repository roots fall back from missing build output to checked-in TypeScript source (441.978973ms)
+✔ tests/remoteEsmImportMatching.test.ts (245.252903ms)
+✔ bare esm.sh TypeScript URLs are pinned at the import boundary (1.337356ms)
+✔ all committed esm.sh TypeScript URLs are pinned to package.json (16.13432ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 7
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 740.091778
+
+✖ failing tests:
+
+test at tests/privateGithub.test.ts:118:1
+✖ accepts an existing Octokit-compatible client (1.175687ms)
+  Error: Could not find a checked-in runtime entry for acme/private-lib. Tried: index.js, src/index.ts, src/index.tsx, src/index.mts, src/index.cts, index.ts, index.tsx, index.mts, index.cts, src/index.js.
+      at resolvePackageRuntimePath (file:///home/runner/work/remotesm/remotesm/src/github.ts:267:9)
+      at async resolvePrivateGitHubTarget (file:///home/runner/work/remotesm/remotesm/src/github.ts:88:19)
+      at async TestContext.<anonymous> (file:///home/runner/work/remotesm/remotesm/tests/privateGithub.test.ts:135:18)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7)
+
+> remote-esm@0.1.0 bundles
+> node scripts/bundle.ts mjs && node scripts/bundle.ts ts
+
+[34mℹ[39m config file: [4m/home/runner/work/remotesm/remotesm/package.json[24m 
+[34mℹ[39m entry: [34msrc/index.ts[39m
+[34mℹ[39m target: [34mesnext[39m
+[34mℹ[39m tsconfig: [34mtsconfig.json[39m
+[34mℹ[39m Build start
+[34mℹ[39m [2mbuild/[22m[1mbundle.mjs[22m  [2m143.93 kB[22m [2m│ gzip: 34.32 kB[22m
+[34mℹ[39m 1 files, total: 143.93 kB
+[32m✔[39m Build complete in [32m30ms[39m
+[34mℹ[39m config file: [4m/home/runner/work/remotesm/remotesm/package.json[24m 
+[34mℹ[39m entry: [34msrc/index.ts[39m
+[34mℹ[39m target: [34mesnext[39m
+[34mℹ[39m tsconfig: [34mtsconfig.json[39m
+[34mℹ[39m Build start
+[34mℹ[39m [2mbuild/[22m[1mbundle.ts[22m  [2m143.93 kB[22m [2m│ gzip: 34.32 kB[22m
+[34mℹ[39m 1 files, total: 143.93 kB
+[32m✔[39m Build complete in [32m30ms[39m
+
+> remote-esm@0.1.0 test
+> node --test tests/*.test.ts
+
+✔ configured importer options merge defined overrides deeply (8.429164ms)
+✔ parses GitHub repository aliases without exposing auth (7.116089ms)
+✔ resolves and imports a private GitHub package with token-authenticated fetch (417.705088ms)
+✖ accepts an existing Octokit-compatible client (1.082444ms)
+✔ repository roots fall back from missing build output to checked-in TypeScript source (491.946858ms)
+✔ tests/remoteEsmImportMatching.test.ts (302.529328ms)
+✔ bare esm.sh TypeScript URLs are pinned at the import boundary (1.153594ms)
+✔ all committed esm.sh TypeScript URLs are pinned to package.json (9.30894ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 7
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 779.697108
+
+✖ failing tests:
+
+test at tests/privateGithub.test.ts:118:1
+✖ accepts an existing Octokit-compatible client (1.082444ms)
+  Error: Could not find a checked-in runtime entry for acme/private-lib. Tried: index.js, src/index.ts, src/index.tsx, src/index.mts, src/index.cts, index.ts, index.tsx, index.mts, index.cts, src/index.js.
+      at resolvePackageRuntimePath (file:///home/runner/work/remotesm/remotesm/src/github.ts:267:9)
+      at async resolvePrivateGitHubTarget (file:///home/runner/work/remotesm/remotesm/src/github.ts:88:19)
+      at async TestContext.<anonymous> (file:///home/runner/work/remotesm/remotesm/tests/privateGithub.test.ts:135:18)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7)
+INSTALL=0 TEST=1 BUILD=0 RETEST=1
