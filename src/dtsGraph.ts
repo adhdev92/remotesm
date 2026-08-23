@@ -1,4 +1,5 @@
 import { remoteEsmVm, vmMemo } from "./cache.ts";
+import { isGitHubVirtualUrl, resolveGitHubVirtualImport } from "./github.ts";
 import { getJson, getText } from "./network.ts";
 import { appendQuery, isHttpUrl, toAbsoluteCdnUrl } from "./url.ts";
 import type { DtsGraph, NormalizedRemoteEsmTarget, RemoteEsmOptions } from "./types.ts";
@@ -20,7 +21,7 @@ export async function resolveDeclarationUrl(target: NormalizedRemoteEsmTarget, o
       throw new Error(`No d.ts URL or metadata URL available for ${target.specifier}.`);
     }
 
-    const meta: any = await getJson(target.metaUrl);
+    const meta: any = await getJson(target.metaUrl, options);
     const dtsPath = meta?.default?.dts || meta?.dts || meta?.types || meta?.typings;
 
     if (!dtsPath) {
@@ -62,7 +63,7 @@ export async function loadDtsGraph(entryUrl: string, options: RemoteEsmOptions =
       let text = "";
 
       try {
-        text = await getText(url);
+        text = await getText(url, options);
       } catch (error: any) {
         failed.push({
           url,
@@ -131,17 +132,21 @@ export async function resolveDtsImport(fromUrl: string, imported: string, option
   if (spec.startsWith("node:")) return "";
 
   if (isHttpUrl(spec)) {
-    return await firstWorkingDtsCandidate([spec]);
+    return await firstWorkingDtsCandidate([spec], options);
   }
 
   if (spec.startsWith("/") && !spec.startsWith("//")) {
-    const origin = new URL(fromUrl).origin;
-    return await firstWorkingDtsCandidate(expandDtsCandidates(`${origin}${spec}`));
+    const absolute = isGitHubVirtualUrl(fromUrl)
+      ? resolveGitHubVirtualImport(fromUrl, spec)
+      : `${new URL(fromUrl).origin}${spec}`;
+    return await firstWorkingDtsCandidate(expandDtsCandidates(absolute), options);
   }
 
   if (spec.startsWith(".")) {
-    const absolute = new URL(spec, fromUrl).href;
-    return await firstWorkingDtsCandidate(expandDtsCandidates(absolute));
+    const absolute = isGitHubVirtualUrl(fromUrl)
+      ? resolveGitHubVirtualImport(fromUrl, spec)
+      : new URL(spec, fromUrl).href;
+    return await firstWorkingDtsCandidate(expandDtsCandidates(absolute), options);
   }
 
   if (!options.includeBareDtsImports) {
@@ -151,7 +156,7 @@ export async function resolveDtsImport(fromUrl: string, imported: string, option
   try {
     const base = options.esmBase || "https://esm.sh";
     const metaUrl = appendQuery(`${base.replace(/\/$/, "")}/${spec.replace(/^\//, "")}`, { meta: "" });
-    const meta: any = await getJson(metaUrl);
+    const meta: any = await getJson(metaUrl, options);
     const dtsPath = meta?.default?.dts || meta?.dts || meta?.types || meta?.typings;
     return dtsPath ? toAbsoluteCdnUrl(dtsPath, metaUrl) : "";
   } catch {
@@ -178,10 +183,10 @@ export function expandDtsCandidates(url: string): string[] {
 }
 
 /** Return the first declaration URL that can be fetched. */
-export async function firstWorkingDtsCandidate(candidates: string[]): Promise<string> {
+export async function firstWorkingDtsCandidate(candidates: string[], options: RemoteEsmOptions = {}): Promise<string> {
   for (const candidate of candidates) {
     try {
-      await getText(candidate);
+      await getText(candidate, options);
       return candidate;
     } catch {
       // Try next candidate.
