@@ -12,6 +12,7 @@
   ],
   "main": "build/build.ts",
   "scripts": {
+    "test": "node --test tests/*.test.ts",
     "tsbundle": "node scripts/bundle.ts ts",
     "mjsbundle": "node scripts/bundle.ts mjs",
     "bundles": "node scripts/bundle.ts mjs && node scripts/bundle.ts ts"
@@ -20,7 +21,7 @@
     "@opengsd/gsd-core": "^1.6.1",
     "@types/node": "^26.1.0",
     "tsdown": "^0.22.3",
-    "typescript": "^6.0.3"
+    "typescript": "6.0.3"
   },
   "engines": {
     "node": ">=25"
