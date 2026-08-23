@@ -1874,12 +1874,32 @@ async function getDefaultBranch(owner, repo, options) {
 	return String(data.default_branch);
 }
 async function resolvePackageRuntimePath(owner, repo, ref, packageRoot, pkg, options) {
+	const declared = pickPackageRuntimeEntry(pkg);
+	if (declared) {
+		const declaredPath = joinPath(packageRoot, declared);
+		if (await githubFileExists(owner, repo, ref, declaredPath, options)) return declaredPath;
+	}
+	if (typeof pkg?.source === "string" && pkg.source.trim()) return joinPath(packageRoot, stripDotSlash(pkg.source));
+	const inferredSourceCandidates = compiledEntrySourceCandidates(declared);
+	if (packageUsesTypeScript(pkg)) {
+		const inferredTypeScriptSource = inferredSourceCandidates.find((candidate) => /\.(?:ts|tsx|mts|cts)$/i.test(candidate));
+		if (inferredTypeScriptSource) return joinPath(packageRoot, inferredTypeScriptSource);
+	}
 	const candidates = packageRuntimeCandidates(pkg);
 	for (const entry of candidates) {
+		if (entry === declared || inferredSourceCandidates.includes(entry)) continue;
 		const candidate = joinPath(packageRoot, entry);
 		if (await githubFileExists(owner, repo, ref, candidate, options)) return candidate;
 	}
 	throw new Error(`Could not find a checked-in runtime entry for ${owner}/${repo}${packageRoot ? `/${packageRoot}` : ""}. Tried: ${candidates.join(", ")}.`);
+}
+function packageUsesTypeScript(pkg) {
+	return [
+		pkg?.dependencies?.typescript,
+		pkg?.devDependencies?.typescript,
+		pkg?.peerDependencies?.typescript,
+		pkg?.optionalDependencies?.typescript
+	].some((value) => typeof value === "string" && value.trim());
 }
 function packageRuntimeCandidates(pkg) {
 	const out = /* @__PURE__ */ new Set();
@@ -1924,8 +1944,8 @@ async function githubFileExists(owner, repo, ref, path, options) {
 		await fetchGitHubFile(owner, repo, ref, path, options);
 		return true;
 	} catch (error) {
-		if (error?.status === 404 || error?.code === "ERR_PRIVATE_GITHUB_FETCH") return false;
-		return false;
+		if (error?.status === 404) return false;
+		throw error;
 	}
 }
 async function inferGitHubDeclarationPath(owner, repo, ref, runtimePath, options) {

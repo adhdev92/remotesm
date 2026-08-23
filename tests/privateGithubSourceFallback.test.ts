@@ -16,6 +16,9 @@ test("repository roots fall back from missing build output to checked-in TypeScr
       exports: {
         "./pglite": "./dist/pglite.mjs",
       },
+      devDependencies: {
+        typescript: "^6.0.3",
+      },
     }),
     "src/index.ts": "export const answer: number = 42;",
   };
@@ -59,8 +62,7 @@ test("repository roots fall back from missing build output to checked-in TypeScr
 
   assert.equal(target?.runtimeUrl, sourceUrl);
   assert.equal(target?.dtsUrl, sourceUrl);
-  assert.ok(requestedPaths.includes("dist/index.mjs"));
-  assert.ok(requestedPaths.includes("src/index.ts"));
+  assert.deepEqual(requestedPaths, ["package.json", "dist/index.mjs"]);
 
   const result = await RemoteEsmImport("gh:acme/source-only", {
     ...options,
