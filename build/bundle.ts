@@ -3483,6 +3483,40 @@ async function remoteEsmImport(input, options = {}) {
 		return result;
 	});
 }
+/**
+* Create a RemoteEsmImport function with reusable defaults captured once.
+* Per-call options override only fields that are explicitly defined.
+*/
+function createRemoteEsmImport(defaultOptions = {}) {
+	const defaults = mergeRemoteEsmOptions({}, defaultOptions);
+	return async (input, options = {}) => {
+		return await remoteEsmImport(input, mergeRemoteEsmOptions(defaults, options));
+	};
+}
+/** Alias emphasizing one-time initialization of a configured importer. */
+const initRemoteEsmImport = createRemoteEsmImport;
+/** Merge initialized defaults with per-call overrides while preserving undefined defaults. */
+function mergeRemoteEsmOptions(defaults = {}, overrides = {}) {
+	const merged = mergeDefinedRecord(defaults, overrides);
+	if (defaults.github || overrides.github) merged.github = mergeDefinedRecord(defaults.github || {}, overrides.github || {});
+	if (defaults.jsdoc || overrides.jsdoc) merged.jsdoc = mergeJsdocOptions$1(defaults.jsdoc, overrides.jsdoc);
+	return merged;
+}
+function mergeJsdocOptions$1(defaults, overrides) {
+	const merged = mergeDefinedRecord(defaults || {}, overrides || {});
+	if (defaults?.tags || overrides?.tags) merged.tags = mergeDefinedRecord(defaults?.tags || {}, overrides?.tags || {});
+	if (defaults?.importTypes || overrides?.importTypes) merged.importTypes = mergeDefinedRecord(defaults?.importTypes || {}, overrides?.importTypes || {});
+	if (defaults?.shorthand && typeof defaults.shorthand === "object" && overrides?.shorthand && typeof overrides.shorthand === "object") {
+		merged.shorthand = mergeDefinedRecord(defaults.shorthand, overrides.shorthand);
+		if (defaults.shorthand.types || overrides.shorthand.types) merged.shorthand.types = mergeDefinedRecord(defaults.shorthand.types || {}, overrides.shorthand.types || {});
+	}
+	return merged;
+}
+function mergeDefinedRecord(defaults, overrides) {
+	const merged = { ...defaults };
+	for (const [key, value] of Object.entries(overrides)) if (value !== void 0) merged[key] = value;
+	return merged;
+}
 /** Backwards-compatible alias for the earlier single-file API name. */
 const importCdnPackageWithTypes = remoteEsmImport;
 //#endregion
@@ -3558,4 +3592,4 @@ var src_default = {
 	$import_meta: import.meta
 };
 //#endregion
-export { bli_cache_default as BliCache, core_default as Core, DEFAULT_OCTOKIT_URL, DEFAULT_TYPESCRIPT_URL, getStorageQuota as GetStorageQuota, PRIVATE_GITHUB_PROTOCOL, importCdnPackageWithTypes as RemoteEsmImport, importCdnPackageWithTypes, Src, string_exports as StringUtils, TYPESCRIPT_VERSION, temp_storage_default as TempStorage, aliasBasicType, appendQuery, appendRawDocLines, attachCompletionTypeJsdoc, buildGlobalDefinitions, buildImportTypeDefinitions, buildRemoteEsmImportMatches, buildShorthandDefinition, cache_exports as cache, callableEntryToSafeArrowType, cleanDoc, cleanTagName, clearRemoteEsmVm, completionTypeToSafeJsdoc, completionsToSafeJsdoc, converter_exports as converter, createDtsCompletionConverter, createGitHubVirtualUrl, src_default as default, dtsGraph_exports as dtsGraph, escapeJsString, escapeRegExp, esmMetaUrl, esmUrl, expandDtsCandidates, exportTypeAccessor, extractDtsImportSpecifiers, extractPropertyType, extractTemplateNames, extractTypeAliasType, fetchGitHubFile, fetchGitHubVirtualText, findMatchingParen, findTopLevelArrow, findTopLevelChar, firstWorkingDtsCandidate, getConstructorTypeExpression, getDtsConverter, getJson, getLocalExportTypeName, getRequiredTemplateCount, getText, getTypedBindingTypeExpression, github_exports as github, hasPrivateGitHubTransport, importModuleCached, importWithPackageCache, inferSpecifierFromUrl, isAbsoluteUrl, isGitHubVirtualUrl, isHttpUrl, isIdentifierName, isPrimitiveOrBuiltin, joinDefinitionLines, jsdoc_exports as jsdoc, loadDtsGraph, loadTypeScript, markdown_exports as markdown, markdownCodeBlock, mergeJsdocOptions, monaco_exports as monaco, network_exports as network, normalizeJsdocSettings, normalizePackageSpecifier, normalizeRemoteEsmTarget, normalizeTypedBindingOptions, oneLine, parseArrowFunctionType, parseCallableDetail, parseGenericType, parseGitHubSpecifier, parseGitHubVirtualUrl, parseParams, propertyAccessor, remoteEsmImport, remoteEsmImportMatchToTypedBinding, remoteEsmVm, renderArrowParam, renderJsdocBlock, renderJsdocDefinitions, renderOneLineJsdocBlock, renderSafeProperty, renderTypedBinding, resolveDeclarationUrl, resolveDtsImport, resolveGitHubVirtualImport, resolvePrivateGitHubTarget, resolveTypeScriptUrl, runtimePropertyAccessor, sanitizeBindingName, sanitizeParamName, shouldOmitObjectTypedefType, spaceToDocLines, spaceToRawSeparator, splitTopLevel, toAbsoluteCdnUrl, toLocalParsedTypeExpression, toMonacoSuggestions, toSafeArrowType, toSafeGenericArgument, toSafeJsdocType, types_exports as types, url_exports as url, vmMemo };
+export { bli_cache_default as BliCache, core_default as Core, DEFAULT_OCTOKIT_URL, DEFAULT_TYPESCRIPT_URL, getStorageQuota as GetStorageQuota, PRIVATE_GITHUB_PROTOCOL, importCdnPackageWithTypes as RemoteEsmImport, importCdnPackageWithTypes, Src, string_exports as StringUtils, TYPESCRIPT_VERSION, temp_storage_default as TempStorage, aliasBasicType, appendQuery, appendRawDocLines, attachCompletionTypeJsdoc, buildGlobalDefinitions, buildImportTypeDefinitions, buildRemoteEsmImportMatches, buildShorthandDefinition, cache_exports as cache, callableEntryToSafeArrowType, cleanDoc, cleanTagName, clearRemoteEsmVm, completionTypeToSafeJsdoc, completionsToSafeJsdoc, converter_exports as converter, createDtsCompletionConverter, createGitHubVirtualUrl, createRemoteEsmImport, src_default as default, dtsGraph_exports as dtsGraph, escapeJsString, escapeRegExp, esmMetaUrl, esmUrl, expandDtsCandidates, exportTypeAccessor, extractDtsImportSpecifiers, extractPropertyType, extractTemplateNames, extractTypeAliasType, fetchGitHubFile, fetchGitHubVirtualText, findMatchingParen, findTopLevelArrow, findTopLevelChar, firstWorkingDtsCandidate, getConstructorTypeExpression, getDtsConverter, getJson, getLocalExportTypeName, getRequiredTemplateCount, getText, getTypedBindingTypeExpression, github_exports as github, hasPrivateGitHubTransport, importModuleCached, importWithPackageCache, inferSpecifierFromUrl, initRemoteEsmImport, isAbsoluteUrl, isGitHubVirtualUrl, isHttpUrl, isIdentifierName, isPrimitiveOrBuiltin, joinDefinitionLines, jsdoc_exports as jsdoc, loadDtsGraph, loadTypeScript, markdown_exports as markdown, markdownCodeBlock, mergeJsdocOptions, mergeRemoteEsmOptions, monaco_exports as monaco, network_exports as network, normalizeJsdocSettings, normalizePackageSpecifier, normalizeRemoteEsmTarget, normalizeTypedBindingOptions, oneLine, parseArrowFunctionType, parseCallableDetail, parseGenericType, parseGitHubSpecifier, parseGitHubVirtualUrl, parseParams, propertyAccessor, remoteEsmImport, remoteEsmImportMatchToTypedBinding, remoteEsmVm, renderArrowParam, renderJsdocBlock, renderJsdocDefinitions, renderOneLineJsdocBlock, renderSafeProperty, renderTypedBinding, resolveDeclarationUrl, resolveDtsImport, resolveGitHubVirtualImport, resolvePrivateGitHubTarget, resolveTypeScriptUrl, runtimePropertyAccessor, sanitizeBindingName, sanitizeParamName, shouldOmitObjectTypedefType, spaceToDocLines, spaceToRawSeparator, splitTopLevel, toAbsoluteCdnUrl, toLocalParsedTypeExpression, toMonacoSuggestions, toSafeArrowType, toSafeGenericArgument, toSafeJsdocType, types_exports as types, url_exports as url, vmMemo };
