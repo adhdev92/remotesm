@@ -21,76 +21,23 @@ jobs:
           node-version: 26
           cache: npm
 
-      - name: Validate and report
-        shell: bash
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test source
+        run: npm test
+
+      - name: Build single-file bundles
+        run: npm run bundles
+
+      - name: Test regenerated outputs
+        run: npm test
+
+      - name: Commit generated bundles
         run: |
-          set +e
-          LOG=.github/source-fallback-validation.log
-          : > "$LOG"
-
-          python - <<'PY' >> "$LOG" 2>&1
-          from pathlib import Path
-          path = Path("src/github.ts")
-          text = path.read_text()
-          old = '''  } catch (error: any) {
-    if (error?.status === 404 || error?.code === "ERR_PRIVATE_GITHUB_FETCH") return false;
-    return false;
-  }
-}'''
-          new = '''  } catch (error: any) {
-    if (error?.status === 404) return false;
-    throw error;
-  }
-}'''
-          if old in text:
-              path.write_text(text.replace(old, new, 1))
-          elif new not in text:
-              raise SystemExit("Expected githubFileExists block not found")
-          PY
-          PATCH_STATUS=$?
-
-          npm ci >> "$LOG" 2>&1
-          INSTALL_STATUS=$?
-
-          TEST_STATUS=99
-          BUILD_STATUS=99
-          FINAL_TEST_STATUS=99
-
-          if [ "$INSTALL_STATUS" -eq 0 ]; then
-            npm test >> "$LOG" 2>&1
-            TEST_STATUS=$?
-          fi
-
-          if [ "$TEST_STATUS" -eq 0 ]; then
-            npm run bundles >> "$LOG" 2>&1
-            BUILD_STATUS=$?
-          fi
-
-          if [ "$BUILD_STATUS" -eq 0 ]; then
-            npm test >> "$LOG" 2>&1
-            FINAL_TEST_STATUS=$?
-          fi
-
-          {
-            echo
-            echo "PATCH_STATUS=$PATCH_STATUS"
-            echo "INSTALL_STATUS=$INSTALL_STATUS"
-            echo "TEST_STATUS=$TEST_STATUS"
-            echo "BUILD_STATUS=$BUILD_STATUS"
-            echo "FINAL_TEST_STATUS=$FINAL_TEST_STATUS"
-          } >> "$LOG"
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          if [ "$PATCH_STATUS" -eq 0 ] && [ "$INSTALL_STATUS" -eq 0 ] && [ "$TEST_STATUS" -eq 0 ] && [ "$BUILD_STATUS" -eq 0 ] && [ "$FINAL_TEST_STATUS" -eq 0 ]; then
-            git add src/github.ts build/bundle.ts build/bundle.mjs
-            git rm .github/workflows/one-shot-github-source-fallback.yml
-            git rm -f .github/source-fallback-validation.log
-            git commit -m "Fix GitHub root source fallback"
-          else
-            git add src/github.ts "$LOG"
-            git commit -m "Capture GitHub source fallback validation failure"
-          fi
-
+          git add build/bundle.ts build/bundle.mjs
+          git rm .github/workflows/one-shot-github-source-fallback.yml
+          git commit -m "Regenerate bundles with GitHub source fallback"
           git push
