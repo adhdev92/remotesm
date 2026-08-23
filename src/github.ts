@@ -81,13 +81,26 @@ export async function resolvePrivateGitHubTarget(
 
   if (!runtimePath) {
     const packagePath = joinPath(packageRoot, "package.json");
-    const pkg = JSON.parse(await fetchGitHubFile(parsed.owner, parsed.repo, ref, packagePath, options));
-    runtimePath = joinPath(packageRoot, pickPackageRuntimeEntry(pkg));
+    const pkg = JSON.parse(
+      await fetchGitHubFile(parsed.owner, parsed.repo, ref, packagePath, options),
+    );
+
+    runtimePath = await resolvePackageRuntimePath(
+      parsed.owner,
+      parsed.repo,
+      ref,
+      packageRoot,
+      pkg,
+      options,
+    );
 
     if (!dtsPath) {
       const declarationEntry = pickPackageDeclarationEntry(pkg);
       if (declarationEntry) {
-        dtsPath = joinPath(packageRoot, declarationEntry);
+        const candidate = joinPath(packageRoot, declarationEntry);
+        if (await githubFileExists(parsed.owner, parsed.repo, ref, candidate, options)) {
+          dtsPath = candidate;
+        }
       }
     }
   }
@@ -234,6 +247,91 @@ async function getDefaultBranch(owner: string, repo: string, options: RemoteEsmO
   return String(data.default_branch);
 }
 
+async function resolvePackageRuntimePath(
+  owner: string,
+  repo: string,
+  ref: string,
+  packageRoot: string,
+  pkg: any,
+  options: RemoteEsmOptions,
+): Promise<string> {
+  const candidates = packageRuntimeCandidates(pkg);
+
+  for (const entry of candidates) {
+    const candidate = joinPath(packageRoot, entry);
+    if (await githubFileExists(owner, repo, ref, candidate, options)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(
+    `Could not find a checked-in runtime entry for ${owner}/${repo}` +
+    `${packageRoot ? `/${packageRoot}` : ""}. Tried: ${candidates.join(", ")}.`,
+  );
+}
+
+function packageRuntimeCandidates(pkg: any): string[] {
+  const out = new Set<string>();
+  const add = (value: unknown) => {
+    if (typeof value !== "string") return;
+    const clean = stripDotSlash(value);
+    if (clean) out.add(clean);
+  };
+
+  const declared = pickPackageRuntimeEntry(pkg);
+  add(declared);
+  add(pkg?.source);
+
+  for (const candidate of compiledEntrySourceCandidates(declared)) add(candidate);
+
+  add("src/index.ts");
+  add("src/index.tsx");
+  add("src/index.mts");
+  add("src/index.cts");
+  add("index.ts");
+  add("index.tsx");
+  add("index.mts");
+  add("index.cts");
+  add("src/index.js");
+  add("index.js");
+
+  return Array.from(out);
+}
+
+function compiledEntrySourceCandidates(entry: string): string[] {
+  const clean = stripDotSlash(entry);
+  if (!clean) return [];
+
+  const sourcePath = clean.replace(/^(?:dist|build|lib|out)\//i, "src/");
+  if (sourcePath === clean) return [];
+
+  const stem = sourcePath.replace(/\.(?:mjs|cjs|js|jsx|mts|cts|ts|tsx)$/i, "");
+  return [
+    `${stem}.ts`,
+    `${stem}.tsx`,
+    `${stem}.mts`,
+    `${stem}.cts`,
+    `${stem}.js`,
+    `${stem}.jsx`,
+  ];
+}
+
+async function githubFileExists(
+  owner: string,
+  repo: string,
+  ref: string,
+  path: string,
+  options: RemoteEsmOptions,
+): Promise<boolean> {
+  try {
+    await fetchGitHubFile(owner, repo, ref, path, options);
+    return true;
+  } catch (error: any) {
+    if (error?.status === 404 || error?.code === "ERR_PRIVATE_GITHUB_FETCH") return false;
+    return false;
+  }
+}
+
 async function inferGitHubDeclarationPath(
   owner: string,
   repo: string,
@@ -247,11 +345,8 @@ async function inferGitHubDeclarationPath(
 
   const candidates = declarationCandidates(runtimePath);
   for (const candidate of candidates) {
-    try {
-      await fetchGitHubFile(owner, repo, ref, candidate, options);
+    if (await githubFileExists(owner, repo, ref, candidate, options)) {
       return candidate;
-    } catch {
-      // Try the next likely declaration path.
     }
   }
   return "";
@@ -263,8 +358,7 @@ function pickPackageRuntimeEntry(pkg: any): string {
     pickConditionalExport(root, ["browser", "import", "module", "default", "require"], true) ||
     (typeof pkg?.module === "string" ? pkg.module : "") ||
     (typeof pkg?.browser === "string" ? pkg.browser : "") ||
-    (typeof pkg?.main === "string" ? pkg.main : "") ||
-    "index.js",
+    (typeof pkg?.main === "string" ? pkg.main : ""),
   );
 }
 
