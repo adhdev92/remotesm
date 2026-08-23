@@ -3,9 +3,10 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const exactVersionPattern = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
-const typescriptUrlPattern = /https:\/\/esm\.sh\/typescript(?:@([^\s"'`?]+))?/g;
+const unpinnedTypeScriptUrlPattern = /https:\/\/esm\.sh\/typescript(?=["'`?\s]|$)/g;
+const literalTypeScriptVersionPattern = /https:\/\/esm\.sh\/typescript@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)/g;
 
-test("all committed esm.sh TypeScript URLs use the package.json version", async () => {
+test("all committed esm.sh TypeScript URLs are pinned to package.json", async () => {
   const packageJson = JSON.parse(await readFile("package.json", "utf8")) as {
     devDependencies?: { typescript?: unknown };
   };
@@ -22,21 +23,26 @@ test("all committed esm.sh TypeScript URLs use the package.json version", async 
     "tests/bundle.ts",
   ];
 
-  let matchCount = 0;
+  let literalMatchCount = 0;
 
   for (const path of files) {
     const source = await readFile(path, "utf8");
-    const matches = Array.from(source.matchAll(typescriptUrlPattern));
-    matchCount += matches.length;
 
-    for (const match of matches) {
+    assert.deepEqual(
+      source.match(unpinnedTypeScriptUrlPattern) || [],
+      [],
+      `${path} contains an unpinned TypeScript CDN URL`,
+    );
+
+    for (const match of source.matchAll(literalTypeScriptVersionPattern)) {
+      literalMatchCount += 1;
       assert.equal(
         match[1],
         version,
-        `${path} contains an unpinned or mismatched TypeScript CDN URL: ${match[0]}`,
+        `${path} contains a mismatched TypeScript CDN URL: ${match[0]}`,
       );
     }
   }
 
-  assert.ok(matchCount > 0, "Expected at least one committed esm.sh TypeScript URL.");
+  assert.ok(literalMatchCount > 0, "Expected at least one literal esm.sh TypeScript version.");
 });
