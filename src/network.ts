@@ -45,11 +45,25 @@ export async function importModuleCached<T = any>(url: string): Promise<T> {
   });
 }
 
+/** Ensure a bare esm.sh TypeScript URL is pinned to the package.json compiler version. */
+export function resolveTypeScriptUrl(tsUrl = DEFAULT_TYPESCRIPT_URL): string {
+  const url = new URL(tsUrl);
+  const hostname = url.hostname.toLowerCase();
+
+  if ((hostname === "esm.sh" || hostname.endsWith(".esm.sh")) && url.pathname === "/typescript") {
+    url.pathname = `/typescript@${TYPESCRIPT_VERSION}`;
+    return url.href;
+  }
+
+  return tsUrl;
+}
+
 /** Load the TypeScript compiler API from esm.sh. */
 export async function loadTypeScript(tsUrl = DEFAULT_TYPESCRIPT_URL): Promise<any> {
   if (remoteEsmVm.ts) return remoteEsmVm.ts;
 
-  const tsModule: any = await import(tsUrl);
+  const resolvedTsUrl = resolveTypeScriptUrl(tsUrl);
+  const tsModule: any = await import(resolvedTsUrl);
   remoteEsmVm.ts = tsModule.default || tsModule;
 
   return remoteEsmVm.ts;
