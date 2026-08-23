@@ -117,18 +117,23 @@ test("resolves and imports a private GitHub package with token-authenticated fet
 
 test("accepts an existing Octokit-compatible client", async () => {
   const calls: Array<{ route: string; parameters: any }> = [];
+  const files: Record<string, string> = {
+    "package.json": JSON.stringify({
+      module: "./index.js",
+      types: "./index.d.ts",
+    }),
+    "index.js": "export const value = 1;",
+    "index.d.ts": "export declare const value: number;",
+  };
   const octokit = {
     async request(route: string, parameters: any) {
       calls.push({ route, parameters });
-      if (parameters.path === "package.json") {
-        return {
-          data: JSON.stringify({
-            module: "./index.js",
-            types: "./index.d.ts",
-          }),
-        };
+      if (parameters.path in files) {
+        return { data: files[parameters.path] };
       }
-      throw new Error(`Unexpected Octokit request: ${route}`);
+      const error: any = new Error(`Missing fixture file: ${parameters.path}`);
+      error.status = 404;
+      throw error;
     },
   };
 
@@ -138,6 +143,10 @@ test("accepts an existing Octokit-compatible client", async () => {
 
   assert.equal(target?.runtimeUrl, createGitHubVirtualUrl("acme", "private-lib", "deadbeef", "index.js"));
   assert.equal(target?.dtsUrl, createGitHubVirtualUrl("acme", "private-lib", "deadbeef", "index.d.ts"));
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0]?.route, "GET /repos/{owner}/{repo}/contents/{path}");
+  assert.deepEqual(calls.map((call) => call.parameters.path), [
+    "package.json",
+    "index.js",
+    "index.d.ts",
+  ]);
+  assert.ok(calls.every((call) => call.route === "GET /repos/{owner}/{repo}/contents/{path}"));
 });
