@@ -13,7 +13,7 @@ export async function resolvePackageManifest(
     ? input
     : input?.specifier || options.specifier || target.specifier;
 
-  if (isExplicitNonEsmUrlInput(input)) return null;
+  if (isExplicitNonPackageUrlInput(input, target)) return null;
 
   let packagePath = "";
   if (/^(?:github:|gh:)/.test(rawSpecifier) || target.specifier.startsWith("gh/")) {
@@ -32,12 +32,17 @@ export async function resolvePackageManifest(
   }
 }
 
-function isExplicitNonEsmUrlInput(input: RemoteEsmInput): boolean {
+function isExplicitNonPackageUrlInput(
+  input: RemoteEsmInput,
+  target: NormalizedRemoteEsmTarget,
+): boolean {
   const value = typeof input === "string" ? input : input?.runtimeUrl || input?.url || "";
   if (!/^https?:\/\//i.test(value)) return false;
+
   try {
-    const host = new URL(value).hostname.toLowerCase();
-    return host !== "esm.sh" && !host.endsWith(".esm.sh");
+    const url = new URL(value);
+    const packageBase = new URL(target.esmBase);
+    return url.origin !== packageBase.origin;
   } catch {
     return true;
   }
