@@ -25,6 +25,7 @@ test("public npm manifests are fetched as raw package.json and preserved", async
       text: async () => JSON.stringify({
         name: "fixture",
         version: "1.2.3",
+        types: "./index.d.ts",
         typings: "./legacy.d.ts",
         exports: { ".": { types: "./dist/index.d.ts", import: "./dist/index.js" } },
       }),
@@ -36,6 +37,7 @@ test("public npm manifests are fetched as raw package.json and preserved", async
     const target = normalizeRemoteEsmTarget(input);
     const manifest = await resolvePackageManifest(input, target);
     assert.equal(manifest?.name, "fixture");
+    assert.equal(manifest?.types, "./index.d.ts");
     assert.equal(manifest?.typings, "./legacy.d.ts");
     assert.equal(manifest?.exports?.["."]?.types, "./dist/index.d.ts");
     assert.deepEqual(calls, ["https://esm.sh/fixture@1.2.3/package.json?raw"]);
@@ -109,6 +111,32 @@ test("explicit non-esm.sh URL targets do not fabricate a manifest", async () => 
     const manifest = await resolvePackageManifest(input, normalizeRemoteEsmTarget(input));
     assert.equal(manifest, null);
     assert.equal(calls, 0);
+  } finally {
+    (globalThis as any).remoteFetchAsync = previous;
+    clearRemoteEsmVm();
+  }
+});
+
+
+test("custom esmBase package URLs remain eligible for manifest resolution", async () => {
+  clearRemoteEsmVm();
+  const previous = (globalThis as any).remoteFetchAsync;
+  const calls: string[] = [];
+  (globalThis as any).remoteFetchAsync = async (url: string) => {
+    calls.push(String(url));
+    return { ok: true, status: 200, text: async () => '{"name":"custom-base"}' };
+  };
+
+  try {
+    const input = "https://cdn.example.test/pkg@1.0.0";
+    const target = normalizeRemoteEsmTarget(input, {
+      esmBase: "https://cdn.example.test",
+    });
+    const manifest = await resolvePackageManifest(input, target, {
+      esmBase: "https://cdn.example.test",
+    });
+    assert.equal(manifest?.name, "custom-base");
+    assert.deepEqual(calls, ["https://cdn.example.test/pkg@1.0.0/package.json?raw"]);
   } finally {
     (globalThis as any).remoteFetchAsync = previous;
     clearRemoteEsmVm();
