@@ -1,9 +1,11 @@
 import { remoteEsmVm } from "../cache.ts";
+import { parseDeclarationGraph } from "../declarations/index.ts";
 import { loadDtsGraph, resolveDeclarationUrl } from "../dtsGraph.ts";
 import { resolvePrivateGitHubTarget } from "../github.ts";
 import { attachCompletionTypeJsdoc, completionsToSafeJsdoc } from "../jsdoc.ts";
+import { resolvePackageManifest } from "../manifest.ts";
 import type { JsdocConvertOptions } from "../jsdoc.ts";
-import { DEFAULT_TYPESCRIPT_URL, importModuleCached } from "../network.ts";
+import { DEFAULT_TYPESCRIPT_URL, importModuleCached, loadTypeScript } from "../network.ts";
 import { normalizeRemoteEsmTarget } from "../url.ts";
 import type {
   RemoteEsmImporter,
@@ -44,9 +46,19 @@ export async function remoteEsmImport(input: RemoteEsmInput, options: RemoteEsmO
     log = true,
   } = options;
 
+  const cacheTarget = {
+    specifier: target.specifier,
+    runtimeUrl: target.runtimeUrl,
+    metaUrl: target.metaUrl,
+    dtsUrl: target.dtsUrl,
+    isUrl: target.isUrl,
+    esmBase: target.esmBase,
+    manifestUrl: target.manifestUrl || "",
+  };
+
   const packageCacheKey = JSON.stringify({
     input,
-    target,
+    target: cacheTarget,
     tsUrl,
     maxDepth,
     maxFiles,
@@ -58,10 +70,11 @@ export async function remoteEsmImport(input: RemoteEsmInput, options: RemoteEsmO
   });
 
   return await importWithPackageCache(packageCacheKey, async () => {
-    const [moduleObject, dtsUrl, converter] = await Promise.all([
+    const [moduleObject, dtsUrl, converter, manifest] = await Promise.all([
       importModuleCached(target.runtimeUrl, options),
       resolveDeclarationUrl(target, options),
       getDtsConverter(tsUrl),
+      resolvePackageManifest(input, target, options),
     ]);
 
     const dtsGraph = await loadDtsGraph(dtsUrl, {
@@ -70,6 +83,8 @@ export async function remoteEsmImport(input: RemoteEsmInput, options: RemoteEsmO
       maxFiles,
       includeBareDtsImports,
     });
+
+    const declarations = parseDeclarationGraph(await loadTypeScript(tsUrl), dtsGraph);
 
     const combinedDts = dtsGraph.files
       .map((file) => ["", `/* ===== ${file.url} ===== */`, file.text].join("\n"))
@@ -101,7 +116,9 @@ export async function remoteEsmImport(input: RemoteEsmInput, options: RemoteEsmO
       metaUrl: target.metaUrl,
       dtsUrl,
       module: moduleObject,
+      manifest,
       dtsGraph,
+      declarations,
       completions,
       imports: buildRemoteEsmImportMatches(moduleObject, completions, {
         importSpecifier: target.runtimeUrl,
