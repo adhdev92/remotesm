@@ -42,7 +42,10 @@ function isExplicitNonPackageUrlInput(
   try {
     const url = new URL(value);
     const packageBase = new URL(target.esmBase);
-    return url.origin !== packageBase.origin;
+    const esmShFamily =
+      packageBase.hostname === "esm.sh" &&
+      (url.hostname === "esm.sh" || url.hostname.endsWith(".esm.sh"));
+    return !esmShFamily && url.origin !== packageBase.origin;
   } catch {
     return true;
   }
