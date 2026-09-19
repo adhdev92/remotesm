@@ -1,4 +1,5 @@
 import type {
+  AnyRecord,
   NormalizedRemoteEsmTarget,
   RemoteEsmGitHubOptions,
   RemoteEsmInput,
@@ -78,10 +79,13 @@ export async function resolvePrivateGitHubTarget(
 
   let runtimePath = explicitFile;
   let dtsPath = options.dtsUrl || (typeof input === "object" && input ? input.dtsUrl || "" : "");
+  let manifest: AnyRecord | null = null;
+  let manifestUrl = "";
 
   if (!runtimePath) {
     const packagePath = joinPath(packageRoot, "package.json");
-    const pkg = JSON.parse(
+    manifestUrl = createGitHubVirtualUrl(parsed.owner, parsed.repo, ref, packagePath);
+    const pkg = manifest = JSON.parse(
       await fetchGitHubFile(parsed.owner, parsed.repo, ref, packagePath, options),
     );
 
@@ -128,6 +132,8 @@ export async function resolvePrivateGitHubTarget(
     dtsUrl,
     isUrl: true,
     esmBase: options.esmBase || "https://esm.sh",
+    manifest,
+    manifestUrl,
   };
 }
 

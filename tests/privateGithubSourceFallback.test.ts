@@ -64,6 +64,7 @@ test("repository roots fall back from missing build output to checked-in TypeScr
   assert.equal(target?.dtsUrl, sourceUrl);
   assert.deepEqual(requestedPaths, ["package.json", "dist/index.mjs"]);
 
+  requestedPaths.length = 0;
   const result = await RemoteEsmImport("gh:acme/source-only", {
     ...options,
     tsUrl: import.meta.resolve("typescript"),
@@ -73,5 +74,8 @@ test("repository roots fall back from missing build output to checked-in TypeScr
   assert.equal(result.pick("answer"), 42);
   assert.equal(result.runtimeUrl, sourceUrl);
   assert.equal(result.dtsUrl, sourceUrl);
+  assert.equal(result.manifest?.main, "./dist/index.mjs");
+  assert.equal(requestedPaths.filter((path) => path === "package.json").length, 1);
+  assert.ok(result.declarations.files[0]?.declarations.some((item) => item.name === "answer"));
   assert.ok(result.completions.flat.some((entry) => entry.label === "answer"));
 });
