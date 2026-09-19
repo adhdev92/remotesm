@@ -1,6 +1,6 @@
 # RemoteEsm
 
-`RemoteEsm` imports a remote ESM runtime module, fetches its `.d.ts` graph, converts declarations to JSON completion data, emits safe JSDoc helper typedefs, and caches everything in virtual memory.
+`RemoteEsm` imports a remote ESM runtime module, fetches its package manifest and `.d.ts` graph when available, exposes both structural declaration IR and completion-oriented JSON, emits safe JSDoc helper typedefs, and caches everything in virtual memory.
 
 ## Main API
 
@@ -38,6 +38,19 @@ output.markdown(markdownCodeBlock(octo.jsdoc, "js"));
 const Octokit = octo.pick("Octokit");
 console.info(Reflect.ownKeys(Octokit));
 ```
+
+The result keeps runtime/editor concerns separate:
+
+```ts
+pkg.module        // executable ESM namespace
+pkg.manifest      // raw package.json, or null when no package manifest applies
+pkg.dtsGraph      // fetched declaration files
+pkg.declarations  // stable JSON-serializable structural declaration IR
+pkg.completions   // editor/completion-oriented representation
+pkg.jsdoc         // generated safe JSDoc helpers
+```
+
+`declarations.files` preserves source-file identity and declaration order. Overloads and declaration merges remain separate array entries rather than being collapsed by name. The structural IR uses library-owned discriminated unions instead of exposing TypeScript AST objects, so it can be serialized with `JSON.stringify()`.
 
 ## Configured importer defaults
 
@@ -133,7 +146,7 @@ await RemoteEsmImport("github:my-org/private-monorepo/packages/sdk#main", {
 });
 ```
 
-For authenticated GitHub packages, `RemoteEsm` reads `package.json`, resolves the root runtime and declaration entries, fetches relative private files through GitHub with authentication, transpiles TypeScript/TSX runtime source when necessary, and rewrites repository-local runtime imports to credential-free data URLs. Bare npm dependencies continue to resolve through `esm.sh`.
+For authenticated GitHub packages, `RemoteEsm` reads `package.json` once, exposes that same manifest on the result, resolves the root runtime and declaration entries, fetches relative private files through GitHub with authentication, transpiles TypeScript/TSX runtime source when necessary, and rewrites repository-local runtime imports to credential-free data URLs. Bare npm dependencies and public GitHub packages continue to resolve through `esm.sh`; their manifests are fetched through esm.sh raw mode.
 
 A private runtime graph containing circular relative imports currently requires a pre-bundled ESM entry; the authenticated data-URL loader reports `ERR_PRIVATE_GITHUB_MODULE_CYCLE` rather than hanging.
 
