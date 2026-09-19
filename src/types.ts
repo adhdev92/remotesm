@@ -1,3 +1,5 @@
+import type { DeclarationGraph } from "./declarations/types.ts";
+
 export type AnyRecord = Record<string, any>;
 
 export type RemoteEsmFetch = (input: string, init?: any) => Promise<any>;
@@ -84,6 +86,9 @@ export interface NormalizedRemoteEsmTarget {
   dtsUrl: string;
   isUrl: boolean;
   esmBase: string;
+  /** Raw package.json when resolution already loaded one; null when no package manifest applies. */
+  manifest?: AnyRecord | null;
+  manifestUrl?: string;
 }
 
 export interface DtsFile {
@@ -162,7 +167,11 @@ export interface RemoteEsmResult {
   metaUrl: string;
   dtsUrl: string;
   module: any;
+  /** Raw package.json when available; null for targets without a package manifest. */
+  manifest: AnyRecord | null;
   dtsGraph: DtsGraph;
+  /** Structural, JSON-serializable representation of the declaration graph. */
+  declarations: DeclarationGraph;
   completions: CompletionResult;
   imports: Record<string, RemoteEsmImportMatch>;
   jsdoc: string;
