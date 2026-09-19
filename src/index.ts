@@ -3,9 +3,11 @@ import BliCache from "./bli-cache/index.ts";
 import Core from "./core/index.ts";
 
 import * as converter from "./converter.ts";
+import * as declarations from "./declarations/index.ts";
 import * as dtsGraph from "./dtsGraph.ts";
 import * as github from "./github.ts";
 import * as jsdoc from "./jsdoc.ts";
+import * as manifest from "./manifest.ts";
 import * as markdown from "./markdown.ts";
 import * as monaco from "./monaco.ts";
 import * as network from "./network.ts";
@@ -16,10 +18,12 @@ import * as url from "./url.ts";
 
 export * from "./cache.ts";
 export * from "./converter.ts";
+export * from "./declarations/index.ts";
 export * from "./core/index.ts";
 export * from "./dtsGraph.ts";
 export * from "./github.ts";
 export * from "./jsdoc.ts";
+export * from "./manifest.ts";
 export * from "./markdown.ts";
 export * from "./monaco.ts";
 export * from "./network.ts";
@@ -39,9 +43,11 @@ export {
 
   cache,
   converter,
+  declarations,
   dtsGraph,
   github,
   jsdoc,
+  manifest,
   markdown,
   monaco,
   network,
@@ -54,9 +60,11 @@ export default {
   ...Src,
   cache,
   converter,
+  declarations,
   dtsGraph,
   github,
   jsdoc,
+  manifest,
   markdown,
   monaco,
   network,
