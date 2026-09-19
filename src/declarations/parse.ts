@@ -2,6 +2,7 @@ import type { DtsGraph } from "../types.ts";
 import type {
   Declaration,
   DeclarationBase,
+  DeclarationFile,
   DeclarationGraph,
   DeclarationJsDoc,
   DeclarationMember,
@@ -22,7 +23,7 @@ export function parseDeclarationGraph(ts: any, graph: DtsGraph): DeclarationGrap
 }
 
 /** Parse one declaration file while preserving declaration order and overloads. */
-export function parseDeclarationFile(ts: any, url: string, sourceText: string) {
+export function parseDeclarationFile(ts: any, url: string, sourceText: string): DeclarationFile {
   const sourceFile = ts.createSourceFile(url, String(sourceText || ""), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
 
   function span(node: any): DeclarationSourceSpan {
