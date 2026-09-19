@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import ts from "typescript";
+import * as ts from "typescript";
 import { parseDeclarationGraph } from "../index.ts";
 
 test("structural declaration IR preserves declarations, scopes, overloads, exports, and modern type syntax", () => {
@@ -24,6 +24,7 @@ test("structural declaration IR preserves declarations, scopes, overloads, expor
     "export function overloaded(x: number): string;",
     "export function overloaded(x: string): number;",
     "export type Qualified = NS.Type<string>;",
+    "export type Arr = string[];",
     "export type Union = string | number;",
     "export type Inter = A & B;",
     "export type Tuple = [first?: string, ...rest: number[]];",
@@ -41,6 +42,8 @@ test("structural declaration IR preserves declarations, scopes, overloads, expor
     "export type Constructor = new <T>(value: T) => C<T>;",
     "export const v: string;",
     "export enum E { A, B = 'b' }",
+    "export interface Merge { a: string }",
+    "export interface Merge { b: number }",
     "export namespace Outer { export namespace Inner { export const x: number; } }",
     "declare module 'virtual' { export interface Inside { ok: boolean } }",
     "import Def, * as NS2 from './dep';",
@@ -80,6 +83,7 @@ test("structural declaration IR preserves declarations, scopes, overloads, expor
   const alias = (name: string): any =>
     (declarations.find((item) => item.kind === "typeAlias" && item.name === name) as any).type;
 
+  assert.equal(alias("Arr").kind, "array");
   assert.equal(alias("Qualified").kind, "reference");
   assert.equal(alias("Qualified").name, "NS.Type");
   assert.equal(alias("Union").kind, "union");
@@ -98,6 +102,10 @@ test("structural declaration IR preserves declarations, scopes, overloads, expor
   assert.equal(alias("Template").kind, "templateLiteral");
   assert.equal(alias("Pred").returnType.kind, "predicate");
   assert.equal(alias("Constructor").kind, "constructor");
+
+  assert.equal(declarations.filter((item) => item.kind === "interface" && item.name === "Merge").length, 2);
+  assert.ok(declarations.find((item) => item.kind === "variable" && item.name === "v"));
+  assert.ok(declarations.find((item) => item.kind === "enum" && item.name === "E"));
 
   const outer: any = declarations.find((item) => item.kind === "namespace" && item.name === "Outer");
   assert.equal(outer.declarations[0].declarations[0].name, "x");
