@@ -84,6 +84,7 @@ test("resolves and imports a private GitHub package with token-authenticated fet
   const imported: any = await importModuleCached(target!.runtimeUrl, options);
   assert.equal(imported.value, 42);
 
+  requests.length = 0;
   const result = await RemoteEsmImport("github:acme/private-lib", {
     ...options,
     tsUrl: import.meta.resolve("typescript"),
@@ -91,6 +92,17 @@ test("resolves and imports a private GitHub package with token-authenticated fet
   });
 
   assert.equal(result.pick("value"), 42);
+  assert.deepEqual(result.manifest?.exports, {
+    ".": {
+      types: "./dist/index.d.ts",
+      import: "./dist/index.js",
+    },
+  });
+  assert.equal(
+    requests.filter((request) => new URL(request.url).pathname.endsWith("/contents/package.json")).length,
+    1,
+  );
+  assert.ok(result.declarations.files[0]?.declarations.some((item) => item.name === "value"));
   assert.equal(result.runtimeUrl.includes("github_pat_test_secret"), false);
   assert.ok(result.dtsGraph.files.some((file) => file.url.endsWith("/dist/index.d.ts")));
   assert.ok(result.completions.flat.some((entry) => entry.label === "value"));
